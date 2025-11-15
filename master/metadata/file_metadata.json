@@ -1,0 +1,125 @@
+{
+  "917c3280-a397-44f7-87b1-2d2506d3ef7d" : {
+    "imagenId" : "917c3280-a397-44f7-87b1-2d2506d3ef7d",
+    "size" : 46683,
+    "chunks" : [ {
+      "chunkIndex" : 0,
+      "chunkserverId" : "http://localhost:9001/chunkserver1",
+      "chunkserverUrl" : "http://localhost:9001/chunkserver1",
+      "replicaIndex" : 0
+    }, {
+      "chunkIndex" : 0,
+      "chunkserverId" : "http://localhost:9002/chunkserver2",
+      "chunkserverUrl" : "http://localhost:9002/chunkserver2",
+      "replicaIndex" : 1
+    }, {
+      "chunkIndex" : 0,
+      "chunkserverId" : "http://localhost:9003/chunkserver3",
+      "chunkserverUrl" : "http://localhost:9003/chunkserver3",
+      "replicaIndex" : 2
+    }, {
+      "chunkIndex" : 1,
+      "chunkserverId" : "http://localhost:9001/chunkserver1",
+      "chunkserverUrl" : "http://localhost:9001/chunkserver1",
+      "replicaIndex" : 0
+    }, {
+      "chunkIndex" : 1,
+      "chunkserverId" : "http://localhost:9002/chunkserver2",
+      "chunkserverUrl" : "http://localhost:9002/chunkserver2",
+      "replicaIndex" : 1
+    }, {
+      "chunkIndex" : 1,
+      "chunkserverId" : "http://localhost:9003/chunkserver3",
+      "chunkserverUrl" : "http://localhost:9003/chunkserver3",
+      "replicaIndex" : 2
+    } ],
+    "timestamp" : 1763224015978
+  },
+  "0441002d-0614-4c91-9b35-bcd543e2d233" : {
+    "imagenId" : "0441002d-0614-4c91-9b35-bcd543e2d233",
+    "size" : 43462,
+    "chunks" : [ {
+      "chunkIndex" : 0,
+      "chunkserverId" : "http://localhost:9001/chunkserver1",
+      "chunkserverUrl" : "http://localhost:9001/chunkserver1",
+      "replicaIndex" : 0
+    }, {
+      "chunkIndex" : 0,
+      "chunkserverId" : "http://localhost:9002/chunkserver2",
+      "chunkserverUrl" : "http://localhost:9002/chunkserver2",
+      "replicaIndex" : 1
+    }, {
+      "chunkIndex" : 0,
+      "chunkserverId" : "http://localhost:9003/chunkserver3",
+      "chunkserverUrl" : "http://localhost:9003/chunkserver3",
+      "replicaIndex" : 2
+    }, {
+      "chunkIndex" : 1,
+      "chunkserverId" : "http://localhost:9001/chunkserver1",
+      "chunkserverUrl" : "http://localhost:9001/chunkserver1",
+      "replicaIndex" : 0
+    }, {
+      "chunkIndex" : 1,
+      "chunkserverId" : "http://localhost:9002/chunkserver2",
+      "chunkserverUrl" : "http://localhost:9002/chunkserver2",
+      "replicaIndex" : 1
+    }, {
+      "chunkIndex" : 1,
+      "chunkserverId" : "http://localhost:9003/chunkserver3",
+      "chunkserverUrl" : "http://localhost:9003/chunkserver3",
+      "replicaIndex" : 2
+    } ],
+    "timestamp" : 1763223844572
+  },
+  "c0f5f5ac-c930-4503-9316-b05f056b3a93" : {
+    "imagenId" : "c0f5f5ac-c930-4503-9316-b05f056b3a93",
+    "size" : 69687,
+    "chunks" : [ {
+      "chunkIndex" : 0,
+      "chunkserverId" : "http://localhost:9001/chunkserver1",
+      "chunkserverUrl" : "http://localhost:9001/chunkserver1",
+      "replicaIndex" : 0
+    }, {
+      "chunkIndex" : 0,
+      "chunkserverId" : "http://localhost:9002/chunkserver2",
+      "chunkserverUrl" : "http://localhost:9002/chunkserver2",
+      "replicaIndex" : 1
+    }, {
+      "chunkIndex" : 0,
+      "chunkserverId" : "http://localhost:9003/chunkserver3",
+      "chunkserverUrl" : "http://localhost:9003/chunkserver3",
+      "replicaIndex" : 2
+    }, {
+      "chunkIndex" : 1,
+      "chunkserverId" : "http://localhost:9001/chunkserver1",
+      "chunkserverUrl" : "http://localhost:9001/chunkserver1",
+      "replicaIndex" : 0
+    }, {
+      "chunkIndex" : 1,
+      "chunkserverId" : "http://localhost:9002/chunkserver2",
+      "chunkserverUrl" : "http://localhost:9002/chunkserver2",
+      "replicaIndex" : 1
+    }, {
+      "chunkIndex" : 1,
+      "chunkserverId" : "http://localhost:9003/chunkserver3",
+      "chunkserverUrl" : "http://localhost:9003/chunkserver3",
+      "replicaIndex" : 2
+    }, {
+      "chunkIndex" : 2,
+      "chunkserverId" : "http://localhost:9001/chunkserver1",
+      "chunkserverUrl" : "http://localhost:9001/chunkserver1",
+      "replicaIndex" : 0
+    }, {
+      "chunkIndex" : 2,
+      "chunkserverId" : "http://localhost:9002/chunkserver2",
+      "chunkserverUrl" : "http://localhost:9002/chunkserver2",
+      "replicaIndex" : 1
+    }, {
+      "chunkIndex" : 2,
+      "chunkserverId" : "http://localhost:9003/chunkserver3",
+      "chunkserverUrl" : "http://localhost:9003/chunkserver3",
+      "replicaIndex" : 2
+    } ],
+    "timestamp" : 1763221536486
+  }
+}
