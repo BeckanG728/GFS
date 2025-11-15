@@ -16,11 +16,12 @@ import java.util.stream.Collectors;
 @Service
 public class DFSClientService {
 
-    @Value("${dfs.master.url:http://localhost:9000/master}")
+    @Value("${dfs.master.url:https://backend.tpdteam3.com/master}")
     private String masterUrl;
 
     private final RestTemplate restTemplate = new RestTemplate();
     private static final int CHUNK_SIZE = 32 * 1024; // 32KB por fragmento
+    private final Random random = new Random(); // Para selección aleatoria de réplicas
 
     /**
      * Sube una imagen al sistema distribuido CON REPLICACIÓN
@@ -137,11 +138,11 @@ public class DFSClientService {
     }
 
     /**
-     * Descarga una imagen CON FAILOVER automático
+     * Descarga una imagen CON LOAD BALANCING y FAILOVER automático
      */
     public byte[] downloadImagen(String imagenId) throws Exception {
         System.out.println("╔════════════════════════════════════════════════════════╗");
-        System.out.println("║  📥 DESCARGANDO IMAGEN CON FAILOVER                   ║");
+        System.out.println("║  📥 DESCARGANDO CON LOAD BALANCING + FAILOVER         ║");
         System.out.println("╚════════════════════════════════════════════════════════╝");
         System.out.println("   ImagenId: " + imagenId);
 
@@ -162,13 +163,26 @@ public class DFSClientService {
 
         System.out.println("   Fragmentos a descargar: " + chunksByIndex.size());
         System.out.println("   Réplicas disponibles: " + allChunks.size());
+
+        // Mostrar distribución de réplicas
+        Map<String, Integer> replicaDistribution = new HashMap<>();
+        for (Map<String, Object> chunk : allChunks) {
+            String url = (String) chunk.get("chunkserverUrl");
+            replicaDistribution.merge(url, 1, Integer::sum);
+        }
+        System.out.println("   Distribución de réplicas:");
+        replicaDistribution.forEach((url, count) ->
+                System.out.println("      " + url + ": " + count + " réplicas"));
         System.out.println();
 
-        // 3. Descargar cada fragmento con failover
+        // 3. Descargar cada fragmento con LOAD BALANCING y failover
         List<byte[]> chunkDataList = new ArrayList<>(chunksByIndex.size());
         int totalSize = 0;
         int successfulReads = 0;
         int failoverUsed = 0;
+
+        // Estadísticas de uso de servidores
+        Map<String, Integer> serverUsageCount = new HashMap<>();
 
         for (int i = 0; i < chunksByIndex.size(); i++) {
             List<Map<String, Object>> replicas = chunksByIndex.get(i);
@@ -177,14 +191,19 @@ public class DFSClientService {
                 throw new RuntimeException("No hay réplicas disponibles para fragmento " + i);
             }
 
-            System.out.println("   📦 Fragmento " + i + " (" + replicas.size() + " réplicas):");
+            // 🎯 LOAD BALANCING: Mezclar réplicas aleatoriamente
+            List<Map<String, Object>> shuffledReplicas = new ArrayList<>(replicas);
+            Collections.shuffle(shuffledReplicas, random);
+
+            System.out.println("   📦 Fragmento " + i + " (" + shuffledReplicas.size() + " réplicas disponibles):");
 
             byte[] chunkData = null;
             boolean readSuccess = false;
+            int attemptCount = 0;
 
-            // Intentar leer desde cada réplica hasta encontrar una disponible
-            for (int replicaAttempt = 0; replicaAttempt < replicas.size(); replicaAttempt++) {
-                Map<String, Object> replica = replicas.get(replicaAttempt);
+            // Intentar leer desde réplicas en orden aleatorio
+            for (Map<String, Object> replica : shuffledReplicas) {
+                attemptCount++;
                 String chunkserverUrl = (String) replica.get("chunkserverUrl");
                 int replicaIndex = replica.containsKey("replicaIndex")
                         ? (Integer) replica.get("replicaIndex")
@@ -194,23 +213,29 @@ public class DFSClientService {
                     chunkData = readChunkFromServer(imagenId, i, chunkserverUrl);
 
                     String replicaType = replicaIndex == 0 ? "PRIMARIA" : "RÉPLICA " + replicaIndex;
-                    System.out.println("      ✅ [" + replicaType + "] → " + chunkserverUrl + " (" + chunkData.length + " bytes)");
+                    System.out.println("      ✅ [" + replicaType + "] → " + chunkserverUrl +
+                                       " (" + chunkData.length + " bytes)");
+
+                    // Incrementar contador de uso del servidor
+                    serverUsageCount.merge(chunkserverUrl, 1, Integer::sum);
 
                     readSuccess = true;
                     successfulReads++;
 
-                    if (replicaIndex > 0) {
+                    // Detectar si fue failover (no primera opción)
+                    if (attemptCount > 1) {
                         failoverUsed++;
-                        System.out.println("      ⚠️  FAILOVER activado (réplica secundaria usada)");
+                        System.out.println("      ⚠️  FAILOVER activado (intento #" + attemptCount + ")");
                     }
 
-                    break; // Salir del loop de réplicas si la lectura fue exitosa
+                    break; // Salir si lectura exitosa
                 } catch (Exception e) {
                     String replicaType = replicaIndex == 0 ? "PRIMARIA" : "RÉPLICA " + replicaIndex;
-                    System.err.println("      ❌ [" + replicaType + "] → " + chunkserverUrl + " - Error: " + e.getMessage());
+                    System.err.println("      ❌ [" + replicaType + "] → " + chunkserverUrl +
+                                       " - Error: " + e.getMessage());
 
                     // Si no es la última réplica, continuar con la siguiente
-                    if (replicaAttempt < replicas.size() - 1) {
+                    if (attemptCount < shuffledReplicas.size()) {
                         System.out.println("      🔄 Intentando siguiente réplica...");
                     }
                 }
@@ -237,6 +262,13 @@ public class DFSClientService {
         System.out.println("   ✅ Fragmentos leídos: " + successfulReads);
         System.out.println("   🔄 Failovers usados: " + failoverUsed);
         System.out.println("   📦 Tamaño total: " + totalSize + " bytes");
+
+        // Mostrar distribución de carga
+        System.out.println("   🎯 Distribución de carga:");
+        int finalSuccessfulReads = successfulReads;
+        serverUsageCount.forEach((url, count) ->
+                System.out.println("      " + url + ": " + count + " lecturas (" +
+                                   (count * 100.0 / finalSuccessfulReads) + "%)"));
         System.out.println();
 
         return fullImage;
