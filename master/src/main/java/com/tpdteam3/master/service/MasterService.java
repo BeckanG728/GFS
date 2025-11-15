@@ -38,6 +38,7 @@ public class MasterService {
         chunkservers.add("http://localhost:9001/chunkserver1");
         chunkservers.add("http://localhost:9002/chunkserver2");
         chunkservers.add("http://localhost:9003/chunkserver3");
+        chunkservers.add("http://localhost:9004/chunkserver4");
 
         System.out.println("📊 Configuración:");
         System.out.println("   ├─ Metadatos recuperados: " + fileMetadataStore.size() + " archivos");
