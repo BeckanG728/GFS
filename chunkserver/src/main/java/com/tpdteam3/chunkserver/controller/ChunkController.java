@@ -28,10 +28,25 @@ public class ChunkController {
             Integer chunkIndex = (Integer) request.get("chunkIndex");
             String data = (String) request.get("data");
 
-            if (imagenId == null || chunkIndex == null || data == null) {
+            // ✅ MEJORA: Validaciones más específicas
+            if (imagenId == null || imagenId.trim().isEmpty()) {
                 Map<String, String> error = new HashMap<>();
                 error.put("status", "error");
-                error.put("message", "Parámetros inválidos");
+                error.put("message", "imagenId es requerido y no puede estar vacío");
+                return ResponseEntity.badRequest().body(error);
+            }
+
+            if (chunkIndex == null || chunkIndex < 0) {
+                Map<String, String> error = new HashMap<>();
+                error.put("status", "error");
+                error.put("message", "chunkIndex debe ser un número >= 0");
+                return ResponseEntity.badRequest().body(error);
+            }
+
+            if (data == null || data.trim().isEmpty()) {
+                Map<String, String> error = new HashMap<>();
+                error.put("status", "error");
+                error.put("message", "data es requerido y no puede estar vacío");
                 return ResponseEntity.badRequest().body(error);
             }
 
@@ -42,6 +57,12 @@ public class ChunkController {
             response.put("message", "Fragmento almacenado correctamente");
 
             return ResponseEntity.ok(response);
+        } catch (IllegalArgumentException e) {
+            // Errores de validación (ej: Base64 inválido)
+            Map<String, String> error = new HashMap<>();
+            error.put("status", "error");
+            error.put("message", "Datos inválidos: " + e.getMessage());
+            return ResponseEntity.badRequest().body(error);
         } catch (Exception e) {
             e.printStackTrace();
             Map<String, String> error = new HashMap<>();
@@ -59,6 +80,21 @@ public class ChunkController {
             @RequestParam String imagenId,
             @RequestParam int chunkIndex) {
         try {
+            // ✅ MEJORA: Validación de parámetros
+            if (imagenId == null || imagenId.trim().isEmpty()) {
+                Map<String, Object> error = new HashMap<>();
+                error.put("status", "error");
+                error.put("message", "imagenId es requerido");
+                return ResponseEntity.badRequest().body(error);
+            }
+
+            if (chunkIndex < 0) {
+                Map<String, Object> error = new HashMap<>();
+                error.put("status", "error");
+                error.put("message", "chunkIndex debe ser >= 0");
+                return ResponseEntity.badRequest().body(error);
+            }
+
             byte[] data = storageService.readChunk(imagenId, chunkIndex);
 
             Map<String, Object> response = new HashMap<>();
@@ -74,6 +110,12 @@ public class ChunkController {
             error.put("status", "error");
             error.put("message", e.getMessage());
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(error);
+        } catch (Exception e) {
+            e.printStackTrace();
+            Map<String, Object> error = new HashMap<>();
+            error.put("status", "error");
+            error.put("message", "Error interno: " + e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(error);
         }
     }
 
@@ -85,6 +127,21 @@ public class ChunkController {
             @RequestParam String imagenId,
             @RequestParam int chunkIndex) {
         try {
+            // ✅ MEJORA: Validación de parámetros
+            if (imagenId == null || imagenId.trim().isEmpty()) {
+                Map<String, String> error = new HashMap<>();
+                error.put("status", "error");
+                error.put("message", "imagenId es requerido");
+                return ResponseEntity.badRequest().body(error);
+            }
+
+            if (chunkIndex < 0) {
+                Map<String, String> error = new HashMap<>();
+                error.put("status", "error");
+                error.put("message", "chunkIndex debe ser >= 0");
+                return ResponseEntity.badRequest().body(error);
+            }
+
             storageService.deleteChunk(imagenId, chunkIndex);
 
             Map<String, String> response = new HashMap<>();
@@ -93,6 +150,7 @@ public class ChunkController {
 
             return ResponseEntity.ok(response);
         } catch (Exception e) {
+            e.printStackTrace();
             Map<String, String> error = new HashMap<>();
             error.put("status", "error");
             error.put("message", e.getMessage());
@@ -106,6 +164,14 @@ public class ChunkController {
     @DeleteMapping("/deleteAll")
     public ResponseEntity<Map<String, String>> deleteAllChunks(@RequestParam String imagenId) {
         try {
+            // ✅ MEJORA: Validación de parámetros
+            if (imagenId == null || imagenId.trim().isEmpty()) {
+                Map<String, String> error = new HashMap<>();
+                error.put("status", "error");
+                error.put("message", "imagenId es requerido");
+                return ResponseEntity.badRequest().body(error);
+            }
+
             storageService.deleteAllChunks(imagenId);
 
             Map<String, String> response = new HashMap<>();
@@ -114,6 +180,7 @@ public class ChunkController {
 
             return ResponseEntity.ok(response);
         } catch (Exception e) {
+            e.printStackTrace();
             Map<String, String> error = new HashMap<>();
             error.put("status", "error");
             error.put("message", e.getMessage());
@@ -128,14 +195,30 @@ public class ChunkController {
     public ResponseEntity<Map<String, Object>> chunkExists(
             @RequestParam String imagenId,
             @RequestParam int chunkIndex) {
-        boolean exists = storageService.chunkExists(imagenId, chunkIndex);
+        try {
+            // ✅ MEJORA: Validación de parámetros
+            if (imagenId == null || imagenId.trim().isEmpty()) {
+                Map<String, Object> error = new HashMap<>();
+                error.put("status", "error");
+                error.put("message", "imagenId es requerido");
+                return ResponseEntity.badRequest().body(error);
+            }
 
-        Map<String, Object> response = new HashMap<>();
-        response.put("exists", exists);
-        response.put("imagenId", imagenId);
-        response.put("chunkIndex", chunkIndex);
+            boolean exists = storageService.chunkExists(imagenId, chunkIndex);
 
-        return ResponseEntity.ok(response);
+            Map<String, Object> response = new HashMap<>();
+            response.put("exists", exists);
+            response.put("imagenId", imagenId);
+            response.put("chunkIndex", chunkIndex);
+
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            e.printStackTrace();
+            Map<String, Object> error = new HashMap<>();
+            error.put("status", "error");
+            error.put("message", "Error verificando existencia: " + e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(error);
+        }
     }
 
     /**
@@ -143,7 +226,15 @@ public class ChunkController {
      */
     @GetMapping("/stats")
     public ResponseEntity<Map<String, Object>> getStats() {
-        return ResponseEntity.ok(storageService.getStats());
+        try {
+            return ResponseEntity.ok(storageService.getStats());
+        } catch (Exception e) {
+            e.printStackTrace();
+            Map<String, Object> error = new HashMap<>();
+            error.put("status", "error");
+            error.put("message", "Error obteniendo estadísticas: " + e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(error);
+        }
     }
 
     /**

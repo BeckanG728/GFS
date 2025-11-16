@@ -29,7 +29,7 @@ public class ReplicationMonitorService {
     @Autowired
     private ChunkserverHealthMonitor healthMonitor;
 
-    private final RestTemplate restTemplate = new RestTemplate();
+    private final RestTemplate restTemplate;
     private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
 
     // Configuración
@@ -41,6 +41,15 @@ public class ReplicationMonitorService {
     private final Set<String> currentlyReplicating = ConcurrentHashMap.newKeySet();
     private long totalReplicationsMade = 0;
     private long totalReplicationAttempts = 0;
+
+    public ReplicationMonitorService() {
+        // Configurar RestTemplate con timeouts
+        org.springframework.http.client.SimpleClientHttpRequestFactory factory =
+                new org.springframework.http.client.SimpleClientHttpRequestFactory();
+        factory.setConnectTimeout(5000);  // 5 segundos
+        factory.setReadTimeout(10000);    // 10 segundos
+        this.restTemplate = new RestTemplate(factory);
+    }
 
     @PostConstruct
     public void startMonitoring() {
@@ -322,6 +331,98 @@ public class ReplicationMonitorService {
     }
 
     /**
+     * Elimina réplicas excedentes de un archivo
+     */
+    private void cleanupExcessReplicas(FileMetadata file, ReplicationStatus status, List<String> healthyServers) {
+        String imagenId = file.getImagenId();
+
+        if (!currentlyReplicating.add(imagenId)) {
+            return; // Ya se está procesando
+        }
+
+        System.out.println();
+        System.out.println("╔════════════════════════════════════════════════════════╗");
+        System.out.println("║  🧹 LIMPIANDO RÉPLICAS EXCEDENTES                     ║");
+        System.out.println("╚════════════════════════════════════════════════════════╝");
+        System.out.println("   ImagenId: " + imagenId);
+        System.out.println("   Réplicas máximas actuales: " + status.currentMaxReplicas);
+        System.out.println("   Réplicas objetivo: " + TARGET_REPLICATION_FACTOR);
+        System.out.println();
+
+        CompletableFuture.runAsync(() -> {
+            try {
+                doCleanup(file, healthyServers);
+                System.out.println("✅ Limpieza completada: " + imagenId);
+            } catch (Exception e) {
+                System.err.println("❌ Error en limpieza de " + imagenId + ": " + e.getMessage());
+            } finally {
+                currentlyReplicating.remove(imagenId);
+            }
+        });
+    }
+
+    /**
+     * Realiza la limpieza efectiva de réplicas excedentes
+     */
+    private void doCleanup(FileMetadata file, List<String> healthyServers) throws Exception {
+        Map<Integer, List<ChunkMetadata>> chunksByIndex = file.getChunks().stream()
+                .collect(Collectors.groupingBy(ChunkMetadata::getChunkIndex));
+
+        int replicasDeleted = 0;
+        List<ChunkMetadata> chunksToRemove = new ArrayList<>();
+
+        for (Map.Entry<Integer, List<ChunkMetadata>> entry : chunksByIndex.entrySet()) {
+            int chunkIndex = entry.getKey();
+            List<ChunkMetadata> allReplicas = entry.getValue();
+
+            // Filtrar solo réplicas activas
+            List<ChunkMetadata> activeReplicas = allReplicas.stream()
+                    .filter(chunk -> healthyServers.contains(chunk.getChunkserverUrl()))
+                    .sorted(Comparator.comparingInt(ChunkMetadata::getReplicaIndex))
+                    .collect(Collectors.toList());
+
+            int currentReplicas = activeReplicas.size();
+            int excessReplicas = currentReplicas - TARGET_REPLICATION_FACTOR;
+
+            if (excessReplicas <= 0) {
+                continue; // Este chunk no tiene exceso
+            }
+
+            System.out.println("   📦 Chunk " + chunkIndex + ": Eliminando " + excessReplicas + " réplicas excedentes");
+
+            // Mantener solo las primeras TARGET_REPLICATION_FACTOR réplicas
+            List<ChunkMetadata> replicasToDelete = activeReplicas.stream()
+                    .skip(TARGET_REPLICATION_FACTOR)
+                    .collect(Collectors.toList());
+
+            for (ChunkMetadata chunk : replicasToDelete) {
+                try {
+                    String deleteUrl = chunk.getChunkserverUrl() + "/api/chunk/delete?imagenId=" +
+                                       file.getImagenId() + "&chunkIndex=" + chunkIndex;
+                    restTemplate.delete(deleteUrl);
+
+                    chunksToRemove.add(chunk);
+                    System.out.println("      ✅ Réplica eliminada de: " + chunk.getChunkserverUrl());
+                    replicasDeleted++;
+                } catch (Exception e) {
+                    System.err.println("      ❌ Error eliminando réplica de " +
+                                       chunk.getChunkserverUrl() + ": " + e.getMessage());
+                }
+            }
+        }
+
+        // Actualizar metadatos si se eliminaron réplicas
+        if (replicasDeleted > 0) {
+            file.getChunks().removeAll(chunksToRemove);
+            masterService.updateFileMetadata(file);
+
+            System.out.println();
+            System.out.println("📊 Resultado limpieza:");
+            System.out.println("   🗑️ Réplicas eliminadas: " + replicasDeleted);
+        }
+    }
+
+    /**
      * Lee un chunk desde un chunkserver
      */
     private byte[] readChunkFromServer(String imagenId, int chunkIndex, String chunkserverUrl) throws Exception {
@@ -333,7 +434,15 @@ public class ReplicationMonitorService {
         }
 
         Map<String, Object> responseBody = response.getBody();
+        if (responseBody == null) {
+            throw new RuntimeException("Response body es null");
+        }
+
         String base64Data = (String) responseBody.get("data");
+        if (base64Data == null) {
+            throw new RuntimeException("Data es null en la respuesta");
+        }
+
         return Base64.getDecoder().decode(base64Data);
     }
 
@@ -395,7 +504,8 @@ public class ReplicationMonitorService {
         }
 
         boolean hasExcessReplicas() {
-            return totalReplicas > 0;
+            // CORREGIDO: Verificar si hay MÁS réplicas del objetivo
+            return currentMaxReplicas > TARGET_REPLICATION_FACTOR;
         }
     }
 

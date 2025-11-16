@@ -19,14 +19,28 @@ public class DFSClientService {
     @Value("${dfs.master.url:https://backend.tpdteam3.com/master}")
     private String masterUrl;
 
-    private final RestTemplate restTemplate = new RestTemplate();
+    private final RestTemplate restTemplate;
     private static final int CHUNK_SIZE = 32 * 1024; // 32KB
+
+    // ✅ CORRECCIÓN: Constructor con timeouts configurados
+    public DFSClientService() {
+        org.springframework.http.client.SimpleClientHttpRequestFactory factory =
+                new org.springframework.http.client.SimpleClientHttpRequestFactory();
+        factory.setConnectTimeout(10000);  // 10 segundos
+        factory.setReadTimeout(30000);     // 30 segundos (archivos pueden ser grandes)
+        this.restTemplate = new RestTemplate(factory);
+    }
 
     /**
      * Sube una imagen al sistema distribuido
      * El Master ya se encarga de asignar SOLO servidores activos
      */
     public String uploadImagen(MultipartFile file) throws Exception {
+        // ✅ CORRECCIÓN: Validar que el archivo no sea null
+        if (file == null || file.isEmpty()) {
+            throw new IllegalArgumentException("El archivo no puede estar vacío");
+        }
+
         String imagenId = UUID.randomUUID().toString();
         byte[] imageBytes = file.getBytes();
 
@@ -53,7 +67,19 @@ public class DFSClientService {
         }
 
         Map<String, Object> responseBody = response.getBody();
+
+        // ✅ CORRECCIÓN: Validar que responseBody no sea null
+        if (responseBody == null) {
+            throw new RuntimeException("Respuesta vacía del Master Service");
+        }
+
+        @SuppressWarnings("unchecked")
         List<Map<String, Object>> allChunks = (List<Map<String, Object>>) responseBody.get("chunks");
+
+        // ✅ CORRECCIÓN: Validar que chunks no sea null o vacío
+        if (allChunks == null || allChunks.isEmpty()) {
+            throw new RuntimeException("El Master no devolvió información de chunks");
+        }
 
         // 2. Agrupar réplicas por chunkIndex
         Map<Integer, List<Map<String, Object>>> chunksByIndex = allChunks.stream()
@@ -81,7 +107,7 @@ public class DFSClientService {
 
             for (Map<String, Object> replica : replicas) {
                 String chunkserverUrl = (String) replica.get("chunkserverUrl");
-                int replicaIndex = replica.containsKey("replicaIndex")
+                Integer replicaIndex = replica.containsKey("replicaIndex")
                         ? (Integer) replica.get("replicaIndex")
                         : 0;
 
@@ -137,6 +163,11 @@ public class DFSClientService {
      * El fallback se mantiene como red de seguridad para fallos transitorios
      */
     public byte[] downloadImagen(String imagenId) throws Exception {
+        // ✅ CORRECCIÓN: Validar imagenId
+        if (imagenId == null || imagenId.trim().isEmpty()) {
+            throw new IllegalArgumentException("imagenId no puede estar vacío");
+        }
+
         System.out.println("╔════════════════════════════════════════════════════════╗");
         System.out.println("║  📥 DESCARGANDO CON FALLBACK INTELIGENTE             ║");
         System.out.println("╚════════════════════════════════════════════════════════╝");
@@ -151,11 +182,23 @@ public class DFSClientService {
         }
 
         Map<String, Object> metadata = response.getBody();
+
+        // ✅ CORRECCIÓN: Validar que metadata no sea null
+        if (metadata == null) {
+            throw new RuntimeException("Respuesta vacía del Master Service");
+        }
+
+        @SuppressWarnings("unchecked")
         List<Map<String, Object>> allChunks = (List<Map<String, Object>>) metadata.get("chunks");
+
+        // ✅ CORRECCIÓN: Validar que allChunks no sea null o vacío
+        if (allChunks == null || allChunks.isEmpty()) {
+            throw new RuntimeException("No hay chunks disponibles para la imagen: " + imagenId);
+        }
 
         // 2. Agrupar por chunkIndex
         Map<Integer, List<Map<String, Object>>> chunksByIndex = allChunks.stream()
-                .collect(java.util.stream.Collectors.groupingBy(
+                .collect(Collectors.groupingBy(
                         chunk -> (Integer) chunk.get("chunkIndex")
                 ));
 
@@ -187,7 +230,7 @@ public class DFSClientService {
             for (Map<String, Object> replica : replicas) {
                 attemptCount++;
                 String chunkserverUrl = (String) replica.get("chunkserverUrl");
-                int replicaIndex = replica.containsKey("replicaIndex")
+                Integer replicaIndex = replica.containsKey("replicaIndex")
                         ? (Integer) replica.get("replicaIndex")
                         : 0;
 
@@ -264,14 +307,31 @@ public class DFSClientService {
         }
 
         Map<String, Object> chunkData = chunkResponse.getBody();
+
+        // ✅ CORRECCIÓN: Validar que chunkData no sea null
+        if (chunkData == null) {
+            throw new RuntimeException("Respuesta vacía del chunkserver");
+        }
+
         String base64Data = (String) chunkData.get("data");
+
+        // ✅ CORRECCIÓN: Validar que data no sea null
+        if (base64Data == null) {
+            throw new RuntimeException("Data es null en la respuesta del chunkserver");
+        }
+
         return Base64.getDecoder().decode(base64Data);
     }
 
     /**
-     * Elimina imagen (sin cambios)
+     * Elimina imagen
      */
     public void deleteImagen(String imagenId) throws Exception {
+        // ✅ CORRECCIÓN: Validar imagenId
+        if (imagenId == null || imagenId.trim().isEmpty()) {
+            throw new IllegalArgumentException("imagenId no puede estar vacío");
+        }
+
         System.out.println("🗑️ Eliminando: " + imagenId);
         String deleteUrl = masterUrl + "/api/master/delete?imagenId=" + imagenId;
         restTemplate.delete(deleteUrl);

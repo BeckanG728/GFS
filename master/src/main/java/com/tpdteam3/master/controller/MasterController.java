@@ -32,23 +32,43 @@ public class MasterController {
     @PostMapping("/upload")
     public ResponseEntity<Map<String, Object>> planUpload(@RequestBody Map<String, Object> request) {
         try {
+            // Validaciones
             String imagenId = (String) request.get("imagenId");
             Number sizeNumber = (Number) request.get("size");
+
+            if (imagenId == null || imagenId.trim().isEmpty()) {
+                throw new IllegalArgumentException("imagenId es requerido y no puede estar vacío");
+            }
+            if (sizeNumber == null || sizeNumber.longValue() <= 0) {
+                throw new IllegalArgumentException("size debe ser mayor a 0");
+            }
+
             long size = sizeNumber.longValue();
 
             FileMetadata metadata = masterService.planUpload(imagenId, size);
+
+            // Calcular replication factor de forma segura
+            int uniqueChunks = (int) metadata.getChunks().stream()
+                    .mapToInt(c -> c.getChunkIndex())
+                    .distinct()
+                    .count();
+
+            int replicationFactor = uniqueChunks > 0
+                    ? metadata.getChunks().size() / uniqueChunks
+                    : 0;
 
             Map<String, Object> response = new HashMap<>();
             response.put("status", "success");
             response.put("imagenId", metadata.getImagenId());
             response.put("chunks", metadata.getChunks());
-            response.put("replicationFactor", metadata.getChunks().size() /
-                                              (metadata.getChunks().stream()
-                                                       .mapToInt(c -> c.getChunkIndex())
-                                                       .max()
-                                                       .orElse(0) + 1));
+            response.put("replicationFactor", replicationFactor);
 
             return ResponseEntity.ok(response);
+        } catch (IllegalArgumentException e) {
+            Map<String, Object> error = new HashMap<>();
+            error.put("status", "error");
+            error.put("message", e.getMessage());
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
         } catch (Exception e) {
             e.printStackTrace();
             Map<String, Object> error = new HashMap<>();
@@ -64,6 +84,10 @@ public class MasterController {
     @GetMapping("/metadata")
     public ResponseEntity<Map<String, Object>> getMetadata(@RequestParam String imagenId) {
         try {
+            if (imagenId == null || imagenId.trim().isEmpty()) {
+                throw new IllegalArgumentException("imagenId es requerido");
+            }
+
             FileMetadata metadata = masterService.getMetadata(imagenId);
 
             Map<String, Object> response = new HashMap<>();
@@ -74,6 +98,11 @@ public class MasterController {
             response.put("timestamp", metadata.getTimestamp());
 
             return ResponseEntity.ok(response);
+        } catch (IllegalArgumentException e) {
+            Map<String, Object> error = new HashMap<>();
+            error.put("status", "error");
+            error.put("message", e.getMessage());
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
         } catch (RuntimeException e) {
             Map<String, Object> error = new HashMap<>();
             error.put("status", "error");
@@ -88,6 +117,10 @@ public class MasterController {
     @DeleteMapping("/delete")
     public ResponseEntity<Map<String, String>> deleteFile(@RequestParam String imagenId) {
         try {
+            if (imagenId == null || imagenId.trim().isEmpty()) {
+                throw new IllegalArgumentException("imagenId es requerido");
+            }
+
             // 1. Obtener metadatos antes de eliminar
             FileMetadata metadata = masterService.getMetadata(imagenId);
 
@@ -141,6 +174,11 @@ public class MasterController {
             response.put("replicasFailed", String.valueOf(failedCount));
 
             return ResponseEntity.ok(response);
+        } catch (IllegalArgumentException e) {
+            Map<String, String> error = new HashMap<>();
+            error.put("status", "error");
+            error.put("message", e.getMessage());
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
         } catch (Exception e) {
             e.printStackTrace();
             Map<String, String> error = new HashMap<>();
@@ -185,6 +223,11 @@ public class MasterController {
     public ResponseEntity<Map<String, String>> registerChunkserver(@RequestBody Map<String, String> request) {
         try {
             String url = request.get("url");
+
+            if (url == null || url.trim().isEmpty()) {
+                throw new IllegalArgumentException("url es requerida");
+            }
+
             masterService.registerChunkserver(url);
 
             Map<String, String> response = new HashMap<>();
@@ -192,6 +235,11 @@ public class MasterController {
             response.put("message", "Chunkserver registrado");
 
             return ResponseEntity.ok(response);
+        } catch (IllegalArgumentException e) {
+            Map<String, String> error = new HashMap<>();
+            error.put("status", "error");
+            error.put("message", e.getMessage());
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
         } catch (Exception e) {
             Map<String, String> error = new HashMap<>();
             error.put("status", "error");
@@ -207,6 +255,11 @@ public class MasterController {
     public ResponseEntity<Map<String, String>> unregisterChunkserver(@RequestBody Map<String, String> request) {
         try {
             String url = request.get("url");
+
+            if (url == null || url.trim().isEmpty()) {
+                throw new IllegalArgumentException("url es requerida");
+            }
+
             masterService.unregisterChunkserver(url);
 
             Map<String, String> response = new HashMap<>();
@@ -214,6 +267,11 @@ public class MasterController {
             response.put("message", "Chunkserver dado de baja");
 
             return ResponseEntity.ok(response);
+        } catch (IllegalArgumentException e) {
+            Map<String, String> error = new HashMap<>();
+            error.put("status", "error");
+            error.put("message", e.getMessage());
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
         } catch (Exception e) {
             Map<String, String> error = new HashMap<>();
             error.put("status", "error");
