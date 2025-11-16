@@ -2,6 +2,7 @@ package com.tpdteam3.master.controller;
 
 import com.tpdteam3.master.model.FileMetadata;
 import com.tpdteam3.master.service.MasterService;
+import com.tpdteam3.master.service.ReplicationMonitorService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -19,6 +20,9 @@ public class MasterController {
 
     @Autowired
     private MasterService masterService;
+
+    @Autowired
+    private ReplicationMonitorService replicationMonitor;
 
     private final RestTemplate restTemplate = new RestTemplate();
 
@@ -216,5 +220,43 @@ public class MasterController {
             error.put("message", e.getMessage());
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(error);
         }
+    }
+
+    /**
+     * Endpoint para obtener el estado detallado de salud de todos los chunkservers
+     */
+    @GetMapping("/health/detailed")
+    public ResponseEntity<Map<String, Object>> getDetailedHealth() {
+        Map<String, Object> response = new HashMap<>();
+        response.put("status", "success");
+        response.put("healthStatus", masterService.getHealthStatus());
+        response.put("timestamp", System.currentTimeMillis());
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * Endpoint para forzar un health check inmediato
+     */
+    @PostMapping("/health/check")
+    public ResponseEntity<Map<String, Object>> forceHealthCheck() {
+        // El health monitor se ejecuta automáticamente,
+        // pero podemos devolver el estado actual
+        Map<String, Object> response = new HashMap<>();
+        response.put("status", "success");
+        response.put("message", "Health checks se ejecutan automáticamente cada 10 segundos");
+        response.put("currentStatus", masterService.getHealthStatus());
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * Endpoint para obtener estadísticas de re-replicación
+     */
+    @GetMapping("/replication/stats")
+    public ResponseEntity<Map<String, Object>> getReplicationStats() {
+        Map<String, Object> response = new HashMap<>();
+        response.put("status", "success");
+        response.put("replicationStats", replicationMonitor.getStats());
+        response.put("timestamp", System.currentTimeMillis());
+        return ResponseEntity.ok(response);
     }
 }

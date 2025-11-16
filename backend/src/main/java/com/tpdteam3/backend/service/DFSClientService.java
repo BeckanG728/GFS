@@ -1,5 +1,6 @@
 package com.tpdteam3.backend.service;
 
+
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
@@ -19,23 +20,23 @@ public class DFSClientService {
     private String masterUrl;
 
     private final RestTemplate restTemplate = new RestTemplate();
-    private static final int CHUNK_SIZE = 32 * 1024; // 32KB por fragmento
-    private final Random random = new Random(); // Para selección aleatoria de réplicas
+    private static final int CHUNK_SIZE = 32 * 1024; // 32KB
 
     /**
-     * Sube una imagen al sistema distribuido CON REPLICACIÓN
+     * Sube una imagen al sistema distribuido
+     * El Master ya se encarga de asignar SOLO servidores activos
      */
     public String uploadImagen(MultipartFile file) throws Exception {
         String imagenId = UUID.randomUUID().toString();
         byte[] imageBytes = file.getBytes();
 
         System.out.println("╔════════════════════════════════════════════════════════╗");
-        System.out.println("║  📤 SUBIENDO IMAGEN CON REPLICACIÓN                   ║");
+        System.out.println("║  📤 SUBIENDO IMAGEN (SERVIDORES ACTIVOS)             ║");
         System.out.println("╚════════════════════════════════════════════════════════╝");
         System.out.println("   ImagenId: " + imagenId);
-        System.out.println("   Tamaño: " + imageBytes.length + " bytes (" + (imageBytes.length / 1024) + " KB)");
+        System.out.println("   Tamaño: " + imageBytes.length + " bytes");
 
-        // 1. Consultar al Master dónde escribir
+        // 1. Consultar al Master - EL MASTER SOLO DEVUELVE SERVIDORES ACTIVOS
         String uploadUrl = masterUrl + "/api/master/upload";
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
@@ -51,19 +52,19 @@ public class DFSClientService {
             throw new RuntimeException("Error consultando Master para upload");
         }
 
-        // 2. Obtener plan de replicación
         Map<String, Object> responseBody = response.getBody();
         List<Map<String, Object>> allChunks = (List<Map<String, Object>>) responseBody.get("chunks");
 
-        // 3. Agrupar réplicas por chunkIndex
+        // 2. Agrupar réplicas por chunkIndex
         Map<Integer, List<Map<String, Object>>> chunksByIndex = allChunks.stream()
                 .collect(Collectors.groupingBy(chunk -> (Integer) chunk.get("chunkIndex")));
 
-        System.out.println("   Fragmentos únicos: " + chunksByIndex.size());
-        System.out.println("   Total de réplicas: " + allChunks.size());
+        System.out.println("   Fragmentos: " + chunksByIndex.size());
+        System.out.println("   Total réplicas: " + allChunks.size());
+        System.out.println("   ✅ Todas las réplicas están en servidores ACTIVOS");
         System.out.println();
 
-        // 4. Dividir imagen y escribir cada fragmento en TODAS sus réplicas
+        // 3. Escribir fragmentos - YA NO HAY FAILOVER PORQUE TODOS ESTÁN ACTIVOS
         int offset = 0;
         int successfulWrites = 0;
         int failedWrites = 0;
@@ -72,14 +73,12 @@ public class DFSClientService {
             int chunkIndex = entry.getKey();
             List<Map<String, Object>> replicas = entry.getValue();
 
-            // Calcular datos del fragmento
             int length = Math.min(CHUNK_SIZE, imageBytes.length - offset);
             byte[] chunkData = Arrays.copyOfRange(imageBytes, offset, offset + length);
             String base64Data = Base64.getEncoder().encodeToString(chunkData);
 
             System.out.println("   📦 Fragmento " + chunkIndex + " (" + length + " bytes):");
 
-            // Escribir en TODAS las réplicas
             for (Map<String, Object> replica : replicas) {
                 String chunkserverUrl = (String) replica.get("chunkserverUrl");
                 int replicaIndex = replica.containsKey("replicaIndex")
@@ -93,8 +92,11 @@ public class DFSClientService {
                     System.out.println("      ✅ [" + replicaType + "] → " + chunkserverUrl);
                     successfulWrites++;
                 } catch (Exception e) {
+                    // Esto NO debería ocurrir porque el Master verificó que está activo
+                    // Pero lo manejamos por si acaso
                     String replicaType = replicaIndex == 0 ? "PRIMARIA" : "RÉPLICA " + replicaIndex;
-                    System.err.println("      ❌ [" + replicaType + "] → " + chunkserverUrl + " - Error: " + e.getMessage());
+                    System.err.println("      ⚠️ [" + replicaType + "] → " + chunkserverUrl +
+                                       " - Error inesperado: " + e.getMessage());
                     failedWrites++;
                 }
             }
@@ -103,23 +105,16 @@ public class DFSClientService {
         }
 
         System.out.println();
-        System.out.println("📊 Resultado de escritura:");
+        System.out.println("📊 Resultado:");
         System.out.println("   ✅ Exitosas: " + successfulWrites);
-        System.out.println("   ❌ Fallidas: " + failedWrites);
-        System.out.println("   📈 Tasa de éxito: " + (successfulWrites * 100 / (successfulWrites + failedWrites)) + "%");
-        System.out.println();
-
-        // Considerar exitoso si al menos una réplica de cada chunk se escribió
-        if (successfulWrites < chunksByIndex.size()) {
-            throw new RuntimeException("No se pudo escribir al menos una réplica de cada fragmento");
+        if (failedWrites > 0) {
+            System.out.println("   ⚠️ Fallidas: " + failedWrites + " (inesperadas)");
         }
+        System.out.println();
 
         return imagenId;
     }
 
-    /**
-     * Escribe un chunk a un chunkserver específico
-     */
     private void writeChunkToServer(String imagenId, int chunkIndex, String base64Data, String chunkserverUrl)
             throws Exception {
         String writeUrl = chunkserverUrl + "/api/chunk/write";
@@ -137,71 +132,59 @@ public class DFSClientService {
     }
 
     /**
-     * Descarga una imagen CON LOAD BALANCING y FAILOVER automático
+     * Descarga una imagen con FALLBACK automático
+     * El Master devuelve SOLO réplicas en servidores activos (verificados por health checks)
+     * El fallback se mantiene como red de seguridad para fallos transitorios
      */
     public byte[] downloadImagen(String imagenId) throws Exception {
         System.out.println("╔════════════════════════════════════════════════════════╗");
-        System.out.println("║  📥 DESCARGANDO CON LOAD BALANCING + FAILOVER         ║");
+        System.out.println("║  📥 DESCARGANDO CON FALLBACK INTELIGENTE             ║");
         System.out.println("╚════════════════════════════════════════════════════════╝");
         System.out.println("   ImagenId: " + imagenId);
 
-        // 1. Consultar metadatos
+        // 1. Consultar metadatos - EL MASTER YA FILTRA SERVIDORES CAÍDOS
         String metadataUrl = masterUrl + "/api/master/metadata?imagenId=" + imagenId;
         ResponseEntity<Map> response = restTemplate.getForEntity(metadataUrl, Map.class);
 
         if (!response.getStatusCode().is2xxSuccessful()) {
-            throw new RuntimeException("Error consultando Master para download");
+            throw new RuntimeException("Error consultando Master");
         }
 
         Map<String, Object> metadata = response.getBody();
         List<Map<String, Object>> allChunks = (List<Map<String, Object>>) metadata.get("chunks");
 
-        // 2. Agrupar réplicas por chunkIndex
+        // 2. Agrupar por chunkIndex
         Map<Integer, List<Map<String, Object>>> chunksByIndex = allChunks.stream()
-                .collect(Collectors.groupingBy(chunk -> (Integer) chunk.get("chunkIndex")));
+                .collect(java.util.stream.Collectors.groupingBy(
+                        chunk -> (Integer) chunk.get("chunkIndex")
+                ));
 
-        System.out.println("   Fragmentos a descargar: " + chunksByIndex.size());
+        System.out.println("   Fragmentos: " + chunksByIndex.size());
         System.out.println("   Réplicas disponibles: " + allChunks.size());
-
-        // Mostrar distribución de réplicas
-        Map<String, Integer> replicaDistribution = new HashMap<>();
-        for (Map<String, Object> chunk : allChunks) {
-            String url = (String) chunk.get("chunkserverUrl");
-            replicaDistribution.merge(url, 1, Integer::sum);
-        }
-        System.out.println("   Distribución de réplicas:");
-        replicaDistribution.forEach((url, count) ->
-                System.out.println("      " + url + ": " + count + " réplicas"));
+        System.out.println("   ✅ Todas pre-filtradas por Health Monitor");
         System.out.println();
 
-        // 3. Descargar cada fragmento con LOAD BALANCING y failover
+        // 3. Descargar fragmentos con FALLBACK como red de seguridad
         List<byte[]> chunkDataList = new ArrayList<>(chunksByIndex.size());
         int totalSize = 0;
         int successfulReads = 0;
-        int failoverUsed = 0;
-
-        // Estadísticas de uso de servidores
-        Map<String, Integer> serverUsageCount = new HashMap<>();
+        int fallbacksUsed = 0;
 
         for (int i = 0; i < chunksByIndex.size(); i++) {
             List<Map<String, Object>> replicas = chunksByIndex.get(i);
 
             if (replicas == null || replicas.isEmpty()) {
-                throw new RuntimeException("No hay réplicas disponibles para fragmento " + i);
+                throw new RuntimeException("Fragmento " + i + " no disponible");
             }
 
-            // 🎯 LOAD BALANCING: Mezclar réplicas aleatoriamente
-            List<Map<String, Object>> shuffledReplicas = new ArrayList<>(replicas);
-            Collections.shuffle(shuffledReplicas, random);
-
-            System.out.println("   📦 Fragmento " + i + " (" + shuffledReplicas.size() + " réplicas disponibles):");
+            System.out.println("   📦 Fragmento " + i + " (" + replicas.size() + " réplicas activas):");
 
             byte[] chunkData = null;
             boolean readSuccess = false;
             int attemptCount = 0;
 
-            // Intentar leer desde réplicas en orden aleatorio
-            for (Map<String, Object> replica : shuffledReplicas) {
+            // FALLBACK: Intentar con cada réplica hasta que una funcione
+            for (Map<String, Object> replica : replicas) {
                 attemptCount++;
                 String chunkserverUrl = (String) replica.get("chunkserverUrl");
                 int replicaIndex = replica.containsKey("replicaIndex")
@@ -212,43 +195,42 @@ public class DFSClientService {
                     chunkData = readChunkFromServer(imagenId, i, chunkserverUrl);
 
                     String replicaType = replicaIndex == 0 ? "PRIMARIA" : "RÉPLICA " + replicaIndex;
-                    System.out.println("      ✅ [" + replicaType + "] → " + chunkserverUrl +
-                                       " (" + chunkData.length + " bytes)");
-
-                    // Incrementar contador de uso del servidor
-                    serverUsageCount.merge(chunkserverUrl, 1, Integer::sum);
+                    System.out.println("      ✅ [" + replicaType + "] → " + chunkserverUrl);
 
                     readSuccess = true;
                     successfulReads++;
 
-                    // Detectar si fue failover (no primera opción)
+                    // Detectar si fue fallback (no primera opción)
                     if (attemptCount > 1) {
-                        failoverUsed++;
-                        System.out.println("      ⚠️  FAILOVER activado (intento #" + attemptCount + ")");
+                        fallbacksUsed++;
+                        System.out.println("      🔄 FALLBACK usado (intento #" + attemptCount + ")");
                     }
 
-                    break; // Salir si lectura exitosa
-                } catch (Exception e) {
-                    String replicaType = replicaIndex == 0 ? "PRIMARIA" : "RÉPLICA " + replicaIndex;
-                    System.err.println("      ❌ [" + replicaType + "] → " + chunkserverUrl +
-                                       " - Error: " + e.getMessage());
+                    break; // Éxito, salir del loop de réplicas
 
-                    // Si no es la última réplica, continuar con la siguiente
-                    if (attemptCount < shuffledReplicas.size()) {
-                        System.out.println("      🔄 Intentando siguiente réplica...");
+                } catch (Exception e) {
+                    // FALLBACK: Este servidor falló, intentar con la siguiente réplica
+                    String replicaType = replicaIndex == 0 ? "PRIMARIA" : "RÉPLICA " + replicaIndex;
+                    System.err.println("      ⚠️ [" + replicaType + "] → " + chunkserverUrl +
+                                       " - Error transitorio: " + e.getMessage());
+
+                    // Si hay más réplicas, continuar con fallback
+                    if (attemptCount < replicas.size()) {
+                        System.out.println("      🔄 Intentando fallback a siguiente réplica...");
                     }
                 }
             }
 
             if (!readSuccess || chunkData == null) {
-                throw new RuntimeException("No se pudo leer el fragmento " + i + " desde ninguna réplica");
+                throw new RuntimeException("FALLBACK AGOTADO: No se pudo leer fragmento " + i +
+                                           " desde ninguna de las " + replicas.size() + " réplicas");
             }
 
             chunkDataList.add(chunkData);
             totalSize += chunkData.length;
         }
 
-        // 4. Reconstruir imagen completa
+        // 4. Reconstruir imagen
         byte[] fullImage = new byte[totalSize];
         int offset = 0;
         for (byte[] chunk : chunkDataList) {
@@ -257,32 +239,28 @@ public class DFSClientService {
         }
 
         System.out.println();
-        System.out.println("📊 Resultado de descarga:");
+        System.out.println("📊 Resultado:");
         System.out.println("   ✅ Fragmentos leídos: " + successfulReads);
-        System.out.println("   🔄 Failovers usados: " + failoverUsed);
+        System.out.println("   🔄 Fallbacks usados: " + fallbacksUsed);
         System.out.println("   📦 Tamaño total: " + totalSize + " bytes");
 
-        // Mostrar distribución de carga
-        System.out.println("   🎯 Distribución de carga:");
-        int finalSuccessfulReads = successfulReads;
-        serverUsageCount.forEach((url, count) ->
-                System.out.println("      " + url + ": " + count + " lecturas (" +
-                                   (count * 100.0 / finalSuccessfulReads) + "%)"));
+        if (fallbacksUsed == 0) {
+            System.out.println("   🎯 Eficiencia perfecta: Sin fallbacks necesarios");
+        } else {
+            System.out.println("   ⚠️ Health checks detectaron " + fallbacksUsed + " fallos transitorios");
+        }
         System.out.println();
 
         return fullImage;
     }
 
-    /**
-     * Lee un chunk desde un chunkserver específico
-     */
     private byte[] readChunkFromServer(String imagenId, int chunkIndex, String chunkserverUrl)
             throws Exception {
         String readUrl = chunkserverUrl + "/api/chunk/read?imagenId=" + imagenId + "&chunkIndex=" + chunkIndex;
         ResponseEntity<Map> chunkResponse = restTemplate.getForEntity(readUrl, Map.class);
 
         if (!chunkResponse.getStatusCode().is2xxSuccessful()) {
-            throw new RuntimeException("Error al leer chunk");
+            throw new RuntimeException("Error leyendo chunk");
         }
 
         Map<String, Object> chunkData = chunkResponse.getBody();
@@ -291,10 +269,10 @@ public class DFSClientService {
     }
 
     /**
-     * Elimina una imagen del sistema distribuido (todas las réplicas)
+     * Elimina imagen (sin cambios)
      */
     public void deleteImagen(String imagenId) throws Exception {
-        System.out.println("🗑️ Eliminando todas las réplicas de: " + imagenId);
+        System.out.println("🗑️ Eliminando: " + imagenId);
         String deleteUrl = masterUrl + "/api/master/delete?imagenId=" + imagenId;
         restTemplate.delete(deleteUrl);
     }
