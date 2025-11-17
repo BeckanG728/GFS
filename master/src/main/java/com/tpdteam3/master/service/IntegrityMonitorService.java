@@ -4,6 +4,7 @@ import com.tpdteam3.master.model.FileMetadata;
 import com.tpdteam3.master.model.FileMetadata.ChunkMetadata;
 import jakarta.annotation.PostConstruct;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -38,9 +39,11 @@ import java.util.stream.Collectors;
 public class IntegrityMonitorService {
 
     @Autowired
+    @Lazy
     private MasterService masterService;
 
     @Autowired
+    @Lazy
     private ChunkserverHealthMonitor healthMonitor;
 
     private final RestTemplate restTemplate;
