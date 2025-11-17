@@ -248,7 +248,6 @@ public class MasterHeartbeatHandler {
     }
 
     // Métodos auxiliares
-
     private boolean inventoriesMatch(Map<String, List<Integer>> inv1,
                                      Map<String, List<Integer>> inv2) {
         if (inv1.size() != inv2.size()) return false;

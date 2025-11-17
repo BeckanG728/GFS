@@ -18,7 +18,7 @@ public class MasterService {
     private MetadataPersistenceService persistenceService;
 
     @Autowired
-    private ChunkserverHealthMonitor healthMonitor;
+    private ChunkserverRegistry chunkserverRegistry;
 
     @Autowired
     private MasterHeartbeatHandler heartbeatHandler;
@@ -86,7 +86,7 @@ public class MasterService {
         ChunkserverInfo info = new ChunkserverInfo(url, chunkserverId);
 
         registeredChunkservers.put(url, info);
-        healthMonitor.registerChunkserver(url);
+        chunkserverRegistry.registerChunkserver(url);
 
         System.out.println("╔════════════════════════════════════════════════════════╗");
         System.out.println("║  ✅ CHUNKSERVER " + (isNewRegistration ? "REGISTRADO" : "RE-REGISTRADO") + "                      ║");
@@ -122,7 +122,7 @@ public class MasterService {
     public synchronized void unregisterChunkserver(String url) {
         ChunkserverInfo removed = registeredChunkservers.remove(url);
         if (removed != null) {
-            healthMonitor.unregisterChunkserver(url);
+            chunkserverRegistry.unregisterChunkserver(url);
             System.out.println("╔════════════════════════════════════════════════════════╗");
             System.out.println("║  ⚠️  CHUNKSERVER DESREGISTRADO                        ║");
             System.out.println("╚════════════════════════════════════════════════════════╝");
