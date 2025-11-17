@@ -11,6 +11,7 @@ import org.springframework.web.client.RestTemplate;
 
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 @RestController
@@ -217,70 +218,6 @@ public class MasterController {
     }
 
     /**
-     * Endpoint para registrar un nuevo chunkserver
-     */
-    @PostMapping("/register")
-    public ResponseEntity<Map<String, String>> registerChunkserver(@RequestBody Map<String, String> request) {
-        try {
-            String url = request.get("url");
-
-            if (url == null || url.trim().isEmpty()) {
-                throw new IllegalArgumentException("url es requerida");
-            }
-
-            masterService.registerChunkserver(url);
-
-            Map<String, String> response = new HashMap<>();
-            response.put("status", "success");
-            response.put("message", "Chunkserver registrado");
-
-            return ResponseEntity.ok(response);
-        } catch (IllegalArgumentException e) {
-            Map<String, String> error = new HashMap<>();
-            error.put("status", "error");
-            error.put("message", e.getMessage());
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
-        } catch (Exception e) {
-            Map<String, String> error = new HashMap<>();
-            error.put("status", "error");
-            error.put("message", e.getMessage());
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(error);
-        }
-    }
-
-    /**
-     * Endpoint para dar de baja un chunkserver
-     */
-    @PostMapping("/unregister")
-    public ResponseEntity<Map<String, String>> unregisterChunkserver(@RequestBody Map<String, String> request) {
-        try {
-            String url = request.get("url");
-
-            if (url == null || url.trim().isEmpty()) {
-                throw new IllegalArgumentException("url es requerida");
-            }
-
-            masterService.unregisterChunkserver(url);
-
-            Map<String, String> response = new HashMap<>();
-            response.put("status", "success");
-            response.put("message", "Chunkserver dado de baja");
-
-            return ResponseEntity.ok(response);
-        } catch (IllegalArgumentException e) {
-            Map<String, String> error = new HashMap<>();
-            error.put("status", "error");
-            error.put("message", e.getMessage());
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
-        } catch (Exception e) {
-            Map<String, String> error = new HashMap<>();
-            error.put("status", "error");
-            error.put("message", e.getMessage());
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(error);
-        }
-    }
-
-    /**
      * Endpoint para obtener el estado detallado de salud de todos los chunkservers
      */
     @GetMapping("/health/detailed")
@@ -315,6 +252,100 @@ public class MasterController {
         response.put("status", "success");
         response.put("replicationStats", replicationMonitor.getStats());
         response.put("timestamp", System.currentTimeMillis());
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * Endpoint para registrar un nuevo chunkserver
+     * Los chunkservers llaman este endpoint automáticamente al arrancar
+     */
+    @PostMapping("/register")
+    public ResponseEntity<Map<String, String>> registerChunkserver(@RequestBody Map<String, String> request) {
+        try {
+            String url = request.get("url");
+            String id = request.get("id"); // Opcional
+
+            if (url == null || url.trim().isEmpty()) {
+                throw new IllegalArgumentException("url es requerida");
+            }
+
+            // Validar formato de URL
+            if (!url.startsWith("http://") && !url.startsWith("https://")) {
+                throw new IllegalArgumentException("URL debe comenzar con http:// o https://");
+            }
+
+            masterService.registerChunkserver(url, id);
+
+            Map<String, String> response = new HashMap<>();
+            response.put("status", "success");
+            response.put("message", "Chunkserver registrado exitosamente");
+            response.put("url", url);
+
+            return ResponseEntity.ok(response);
+        } catch (IllegalArgumentException e) {
+            Map<String, String> error = new HashMap<>();
+            error.put("status", "error");
+            error.put("message", e.getMessage());
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
+        } catch (Exception e) {
+            Map<String, String> error = new HashMap<>();
+            error.put("status", "error");
+            error.put("message", e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(error);
+        }
+    }
+
+    /**
+     * Endpoint para dar de baja un chunkserver
+     * Los chunkservers llaman este endpoint al hacer shutdown graceful
+     */
+    @PostMapping("/unregister")
+    public ResponseEntity<Map<String, String>> unregisterChunkserver(@RequestBody Map<String, String> request) {
+        try {
+            String url = request.get("url");
+
+            if (url == null || url.trim().isEmpty()) {
+                throw new IllegalArgumentException("url es requerida");
+            }
+
+            masterService.unregisterChunkserver(url);
+
+            Map<String, String> response = new HashMap<>();
+            response.put("status", "success");
+            response.put("message", "Chunkserver desregistrado exitosamente");
+
+            return ResponseEntity.ok(response);
+        } catch (IllegalArgumentException e) {
+            Map<String, String> error = new HashMap<>();
+            error.put("status", "error");
+            error.put("message", e.getMessage());
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
+        } catch (Exception e) {
+            Map<String, String> error = new HashMap<>();
+            error.put("status", "error");
+            error.put("message", e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(error);
+        }
+    }
+
+    /**
+     * Endpoint para listar todos los chunkservers registrados
+     */
+    @GetMapping("/chunkservers")
+    public ResponseEntity<Map<String, Object>> listChunkservers() {
+        List<String> allServers = masterService.getAllChunkservers();
+        List<String> healthyServers = (List<String>) masterService.getHealthStatus().get("healthyServers");
+        List<String> unhealthyServers = (List<String>) masterService.getHealthStatus().get("unhealthyServers");
+
+        Map<String, Object> response = new HashMap<>();
+        response.put("status", "success");
+        response.put("total", allServers.size());
+        response.put("healthy", healthyServers.size());
+        response.put("unhealthy", unhealthyServers.size());
+        response.put("allServers", allServers);
+        response.put("healthyServers", healthyServers);
+        response.put("unhealthyServers", unhealthyServers);
+
         return ResponseEntity.ok(response);
     }
 }
