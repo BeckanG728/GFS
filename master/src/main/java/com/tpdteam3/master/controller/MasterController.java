@@ -1,6 +1,7 @@
 package com.tpdteam3.master.controller;
 
 import com.tpdteam3.master.model.FileMetadata;
+import com.tpdteam3.master.service.IntegrityMonitorService;
 import com.tpdteam3.master.service.MasterService;
 import com.tpdteam3.master.service.ReplicationMonitorService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -14,6 +15,10 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Controlador REST del Master Service.
+ * Expone endpoints para gestión de archivos, chunkservers y monitoreo del sistema.
+ */
 @RestController
 @RequestMapping("/api/master")
 @CrossOrigin(origins = "*")
@@ -25,15 +30,21 @@ public class MasterController {
     @Autowired
     private ReplicationMonitorService replicationMonitor;
 
+    @Autowired
+    private IntegrityMonitorService integrityMonitor;
+
     private final RestTemplate restTemplate = new RestTemplate();
 
     /**
-     * Endpoint para planificar la subida de un archivo CON REPLICACIÓN
+     * Planifica la subida de un archivo con replicación.
+     * Retorna plan de escritura indicando a qué chunkservers escribir cada fragmento.
+     *
+     * @param request Mapa con imagenId y size del archivo
+     * @return Plan de escritura con lista de chunks y sus ubicaciones
      */
     @PostMapping("/upload")
     public ResponseEntity<Map<String, Object>> planUpload(@RequestBody Map<String, Object> request) {
         try {
-            // Validaciones
             String imagenId = (String) request.get("imagenId");
             Number sizeNumber = (Number) request.get("size");
 
@@ -45,10 +56,8 @@ public class MasterController {
             }
 
             long size = sizeNumber.longValue();
-
             FileMetadata metadata = masterService.planUpload(imagenId, size);
 
-            // Calcular replication factor de forma segura
             int uniqueChunks = (int) metadata.getChunks().stream()
                     .mapToInt(c -> c.getChunkIndex())
                     .distinct()
@@ -80,7 +89,11 @@ public class MasterController {
     }
 
     /**
-     * Endpoint para obtener metadatos de un archivo
+     * Obtiene metadatos de un archivo (ubicación de fragmentos y réplicas).
+     * Filtra automáticamente réplicas en servidores caídos.
+     *
+     * @param imagenId ID único de la imagen
+     * @return Metadatos del archivo con ubicaciones de chunks
      */
     @GetMapping("/metadata")
     public ResponseEntity<Map<String, Object>> getMetadata(@RequestParam String imagenId) {
@@ -113,7 +126,10 @@ public class MasterController {
     }
 
     /**
-     * Endpoint para eliminar un archivo Y TODAS SUS RÉPLICAS
+     * Elimina un archivo y todas sus réplicas de todos los chunkservers.
+     *
+     * @param imagenId ID único de la imagen a eliminar
+     * @return Resultado de la eliminación con contadores de éxito/fallo
      */
     @DeleteMapping("/delete")
     public ResponseEntity<Map<String, String>> deleteFile(@RequestParam String imagenId) {
@@ -122,7 +138,6 @@ public class MasterController {
                 throw new IllegalArgumentException("imagenId es requerido");
             }
 
-            // 1. Obtener metadatos antes de eliminar
             FileMetadata metadata = masterService.getMetadata(imagenId);
 
             System.out.println("╔════════════════════════════════════════════════════════╗");
@@ -135,7 +150,6 @@ public class MasterController {
             int deletedCount = 0;
             int failedCount = 0;
 
-            // 2. Eliminar cada réplica de cada fragmento
             for (FileMetadata.ChunkMetadata chunk : metadata.getChunks()) {
                 String chunkserverUrl = chunk.getChunkserverUrl();
                 int chunkIndex = chunk.getChunkIndex();
@@ -159,7 +173,6 @@ public class MasterController {
                 }
             }
 
-            // 3. Eliminar metadatos del Master
             masterService.deleteFile(imagenId);
 
             System.out.println();
@@ -190,7 +203,9 @@ public class MasterController {
     }
 
     /**
-     * Endpoint para listar todos los archivos
+     * Lista todos los archivos almacenados en el sistema.
+     *
+     * @return Colección de metadatos de todos los archivos
      */
     @GetMapping("/files")
     public ResponseEntity<Collection<FileMetadata>> listFiles() {
@@ -198,15 +213,24 @@ public class MasterController {
     }
 
     /**
-     * Endpoint para obtener estadísticas del sistema
+     * Obtiene estadísticas generales del sistema distribuido.
+     *
+     * @return Mapa con estadísticas: archivos totales, espacio usado, etc.
      */
     @GetMapping("/stats")
     public ResponseEntity<Map<String, Object>> getStats() {
-        return ResponseEntity.ok(masterService.getStats());
+        Map<String, Object> stats = masterService.getStats();
+
+        // ✅ NUEVO: Incluir estadísticas de integridad
+        stats.put("integrityStats", integrityMonitor.getStats());
+
+        return ResponseEntity.ok(stats);
     }
 
     /**
-     * Endpoint para verificar el estado de salud
+     * Verifica el estado de salud del Master Service.
+     *
+     * @return Estado del servicio y de todos los chunkservers
      */
     @GetMapping("/health")
     public ResponseEntity<Map<String, Object>> health() {
@@ -218,7 +242,9 @@ public class MasterController {
     }
 
     /**
-     * Endpoint para obtener el estado detallado de salud de todos los chunkservers
+     * Obtiene estado de salud detallado de todos los chunkservers.
+     *
+     * @return Métricas detalladas de cada chunkserver
      */
     @GetMapping("/health/detailed")
     public ResponseEntity<Map<String, Object>> getDetailedHealth() {
@@ -230,12 +256,13 @@ public class MasterController {
     }
 
     /**
-     * Endpoint para forzar un health check inmediato
+     * Fuerza un health check inmediato (informativo).
+     * Los health checks se ejecutan automáticamente cada 10 segundos.
+     *
+     * @return Estado actual del sistema
      */
     @PostMapping("/health/check")
     public ResponseEntity<Map<String, Object>> forceHealthCheck() {
-        // El health monitor se ejecuta automáticamente,
-        // pero podemos devolver el estado actual
         Map<String, Object> response = new HashMap<>();
         response.put("status", "success");
         response.put("message", "Health checks se ejecutan automáticamente cada 10 segundos");
@@ -244,7 +271,9 @@ public class MasterController {
     }
 
     /**
-     * Endpoint para obtener estadísticas de re-replicación
+     * Obtiene estadísticas de re-replicación automática.
+     *
+     * @return Métricas de operaciones de re-replicación
      */
     @GetMapping("/replication/stats")
     public ResponseEntity<Map<String, Object>> getReplicationStats() {
@@ -256,20 +285,36 @@ public class MasterController {
     }
 
     /**
-     * Endpoint para registrar un nuevo chunkserver
-     * Los chunkservers llaman este endpoint automáticamente al arrancar
+     * ✅ NUEVO: Obtiene estadísticas del sistema de integridad y reparación automática.
+     *
+     * @return Métricas de chunks detectados y reparados
+     */
+    @GetMapping("/integrity/stats")
+    public ResponseEntity<Map<String, Object>> getIntegrityStats() {
+        Map<String, Object> response = new HashMap<>();
+        response.put("status", "success");
+        response.put("integrityStats", integrityMonitor.getStats());
+        response.put("timestamp", System.currentTimeMillis());
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * Registra un nuevo chunkserver en el sistema.
+     * Los chunkservers llaman este endpoint automáticamente al arrancar.
+     *
+     * @param request Mapa con url (requerida) e id (opcional) del chunkserver
+     * @return Confirmación de registro
      */
     @PostMapping("/register")
     public ResponseEntity<Map<String, String>> registerChunkserver(@RequestBody Map<String, String> request) {
         try {
             String url = request.get("url");
-            String id = request.get("id"); // Opcional
+            String id = request.get("id");
 
             if (url == null || url.trim().isEmpty()) {
                 throw new IllegalArgumentException("url es requerida");
             }
 
-            // Validar formato de URL
             if (!url.startsWith("http://") && !url.startsWith("https://")) {
                 throw new IllegalArgumentException("URL debe comenzar con http:// o https://");
             }
@@ -296,8 +341,11 @@ public class MasterController {
     }
 
     /**
-     * Endpoint para dar de baja un chunkserver
-     * Los chunkservers llaman este endpoint al hacer shutdown graceful
+     * Desregistra un chunkserver del sistema.
+     * Los chunkservers llaman este endpoint al hacer shutdown graceful.
+     *
+     * @param request Mapa con url del chunkserver a desregistrar
+     * @return Confirmación de desregistro
      */
     @PostMapping("/unregister")
     public ResponseEntity<Map<String, String>> unregisterChunkserver(@RequestBody Map<String, String> request) {
@@ -329,7 +377,9 @@ public class MasterController {
     }
 
     /**
-     * Endpoint para listar todos los chunkservers registrados
+     * Lista todos los chunkservers registrados con su estado.
+     *
+     * @return Información de servidores activos e inactivos
      */
     @GetMapping("/chunkservers")
     public ResponseEntity<Map<String, Object>> listChunkservers() {

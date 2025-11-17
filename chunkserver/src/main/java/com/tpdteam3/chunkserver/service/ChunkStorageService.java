@@ -12,6 +12,10 @@ import java.nio.file.Paths;
 import java.util.*;
 import java.util.stream.Stream;
 
+/**
+ * Servicio que gestiona el almacenamiento físico de chunks en disco.
+ * Implementa operaciones CRUD sobre fragmentos de archivos y mantiene inventario.
+ */
 @Service
 public class ChunkStorageService {
 
@@ -26,9 +30,14 @@ public class ChunkStorageService {
 
     private Path resolvedStoragePath;
 
+    /**
+     * Inicializa el servicio de almacenamiento al arrancar el chunkserver.
+     * Crea el directorio de almacenamiento si no existe y verifica permisos.
+     *
+     * @throws IOException si no se puede crear el directorio o no hay permisos de escritura
+     */
     @PostConstruct
     public void init() throws IOException {
-        // Resolver la ruta de almacenamiento
         resolvedStoragePath = Paths.get(storagePath).toAbsolutePath().normalize();
 
         System.out.println("╔════════════════════════════════════════════════════════╗");
@@ -39,7 +48,6 @@ public class ChunkStorageService {
         System.out.println("Ruta configurada: " + storagePath);
         System.out.println("Ruta resuelta: " + resolvedStoragePath);
 
-        // Crear directorio si no existe
         if (!Files.exists(resolvedStoragePath)) {
             try {
                 Files.createDirectories(resolvedStoragePath);
@@ -54,7 +62,6 @@ public class ChunkStorageService {
             System.out.println("✅ Directorio de almacenamiento existente");
         }
 
-        // Verificar permisos de escritura
         File storageDir = resolvedStoragePath.toFile();
         if (!storageDir.canWrite()) {
             System.err.println("❌ ADVERTENCIA: Sin permisos de escritura en: " + resolvedStoragePath);
@@ -62,7 +69,6 @@ public class ChunkStorageService {
             System.out.println("✅ Permisos de escritura verificados");
         }
 
-        // Mostrar espacio disponible
         long freeSpace = storageDir.getFreeSpace();
         long totalSpace = storageDir.getTotalSpace();
         System.out.println("💾 Espacio disponible: " + (freeSpace / (1024 * 1024)) + " MB / " +
@@ -73,7 +79,13 @@ public class ChunkStorageService {
     }
 
     /**
-     * Almacena un fragmento EN DISCO
+     * Almacena un fragmento de archivo en disco.
+     * Decodifica los datos Base64 y los escribe como archivo binario.
+     *
+     * @param imagenId   ID único de la imagen
+     * @param chunkIndex Índice del fragmento (0, 1, 2, ...)
+     * @param base64Data Datos del chunk codificados en Base64
+     * @throws RuntimeException si hay error decodificando Base64 o escribiendo a disco
      */
     public void writeChunk(String imagenId, int chunkIndex, String base64Data) {
         try {
@@ -98,7 +110,12 @@ public class ChunkStorageService {
     }
 
     /**
-     * Lee un fragmento DESDE DISCO
+     * Lee un fragmento de archivo desde disco.
+     *
+     * @param imagenId   ID único de la imagen
+     * @param chunkIndex Índice del fragmento a leer
+     * @return Bytes del chunk leído desde disco
+     * @throws RuntimeException si el chunk no existe o hay error leyendo
      */
     public byte[] readChunk(String imagenId, int chunkIndex) {
         try {
@@ -122,7 +139,11 @@ public class ChunkStorageService {
     }
 
     /**
-     * Elimina un fragmento DEL DISCO
+     * Elimina un fragmento específico del disco.
+     *
+     * @param imagenId   ID único de la imagen
+     * @param chunkIndex Índice del fragmento a eliminar
+     * @throws RuntimeException si hay error eliminando el archivo
      */
     public void deleteChunk(String imagenId, int chunkIndex) {
         try {
@@ -145,7 +166,11 @@ public class ChunkStorageService {
     }
 
     /**
-     * Elimina todos los fragmentos de una imagen DEL DISCO
+     * Elimina todos los fragmentos de una imagen específica del disco.
+     * Busca y elimina todos los archivos que coincidan con el patrón: imagenId_chunk_*.bin
+     *
+     * @param imagenId ID único de la imagen cuyos fragmentos se eliminarán
+     * @throws RuntimeException si hay error durante la eliminación
      */
     public void deleteAllChunks(String imagenId) {
         try {
@@ -175,7 +200,85 @@ public class ChunkStorageService {
     }
 
     /**
-     * Obtiene estadísticas del servidor (DESDE DISCO)
+     * ✅ NUEVO: Obtiene un inventario completo de todos los chunks almacenados en disco.
+     * <p>
+     * Este método escanea el directorio de almacenamiento y construye un mapa donde:
+     * - La clave es el imagenId
+     * - El valor es una lista de índices de chunks que existen para esa imagen
+     * <p>
+     * Ejemplo de retorno:
+     * {
+     * "imagen-uuid-1": [0, 1, 2, 3],
+     * "imagen-uuid-2": [0, 1]
+     * }
+     * <p>
+     * Este inventario es usado por el Master en el health check para detectar:
+     * 1. Chunks que fueron eliminados manualmente (Master espera chunk pero no está en inventario)
+     * 2. Chunks huérfanos (están en inventario pero Master no los conoce)
+     *
+     * @return Mapa con imagenId como clave y lista de índices de chunks como valor
+     */
+    public Map<String, List<Integer>> getChunkInventory() {
+        try {
+            if (!Files.exists(resolvedStoragePath)) {
+                return new HashMap<>();
+            }
+
+            Map<String, List<Integer>> inventory = new HashMap<>();
+
+            try (Stream<Path> files = Files.list(resolvedStoragePath)) {
+                files.filter(Files::isRegularFile)
+                        .forEach(path -> {
+                            String filename = path.getFileName().toString();
+
+                            // Parsear archivos con formato: imagenId_chunk_N.bin
+                            if (filename.matches(".*_chunk_\\d+\\.bin")) {
+                                try {
+                                    String[] parts = filename.split("_chunk_");
+                                    String imagenId = parts[0];
+                                    int chunkIndex = Integer.parseInt(
+                                            parts[1].replace(".bin", "")
+                                    );
+
+                                    // Agregar chunk al inventario
+                                    inventory.computeIfAbsent(imagenId, k -> new ArrayList<>())
+                                            .add(chunkIndex);
+                                } catch (Exception e) {
+                                    System.err.println("⚠️ No se pudo parsear archivo: " + filename);
+                                }
+                            }
+                        });
+            }
+
+            // Ordenar índices de chunks para facilitar comparaciones
+            inventory.values().forEach(Collections::sort);
+
+            return inventory;
+
+        } catch (Exception e) {
+            System.err.println("❌ Error obteniendo inventario: " + e.getMessage());
+            return new HashMap<>();
+        }
+    }
+
+    /**
+     * Verifica si un fragmento específico existe en disco.
+     *
+     * @param imagenId   ID único de la imagen
+     * @param chunkIndex Índice del fragmento a verificar
+     * @return true si el chunk existe, false en caso contrario
+     */
+    public boolean chunkExists(String imagenId, int chunkIndex) {
+        String filename = generateFilename(imagenId, chunkIndex);
+        Path filePath = resolvedStoragePath.resolve(filename);
+        return Files.exists(filePath);
+    }
+
+    /**
+     * Obtiene estadísticas del chunkserver.
+     * Incluye: total de chunks, espacio usado, espacio disponible, etc.
+     *
+     * @return Mapa con estadísticas del servidor
      */
     public Map<String, Object> getStats() {
         try {
@@ -223,109 +326,14 @@ public class ChunkStorageService {
     }
 
     /**
-     * Verifica si un fragmento existe EN DISCO
-     */
-    public boolean chunkExists(String imagenId, int chunkIndex) {
-        String filename = generateFilename(imagenId, chunkIndex);
-        Path filePath = resolvedStoragePath.resolve(filename);
-        return Files.exists(filePath);
-    }
-
-    /**
-     * Genera nombre de archivo único para un fragmento
+     * Genera el nombre de archivo para un chunk.
+     * Formato: imagenId_chunk_chunkIndex.bin
+     *
+     * @param imagenId   ID único de la imagen
+     * @param chunkIndex Índice del fragmento
+     * @return Nombre del archivo generado
      */
     private String generateFilename(String imagenId, int chunkIndex) {
         return imagenId + "_chunk_" + chunkIndex + ".bin";
-    }
-
-
-    /**
-     * ✅ NUEVO: Retorna inventario completo de chunks almacenados
-     * Formato: { "imagen-uuid-1": [0, 1, 2], "imagen-uuid-2": [0, 1] }
-     */
-    public Map<String, List<Integer>> getChunkInventory() {
-        try {
-            if (!Files.exists(resolvedStoragePath)) {
-                return new HashMap<>();
-            }
-
-            Map<String, List<Integer>> inventory = new HashMap<>();
-
-            try (Stream<Path> files = Files.list(resolvedStoragePath)) {
-                files.filter(Files::isRegularFile)
-                        .forEach(path -> {
-                            String filename = path.getFileName().toString();
-
-                            // Parsear: "uuid_chunk_N.bin"
-                            if (filename.matches(".*_chunk_\\d+\\.bin")) {
-                                String[] parts = filename.split("_chunk_");
-                                String imagenId = parts[0];
-                                int chunkIndex = Integer.parseInt(
-                                        parts[1].replace(".bin", "")
-                                );
-
-                                inventory.computeIfAbsent(imagenId, k -> new ArrayList<>())
-                                        .add(chunkIndex);
-                            }
-                        });
-            }
-
-            // Ordenar índices de chunks
-            inventory.values().forEach(Collections::sort);
-
-            return inventory;
-
-        } catch (Exception e) {
-            System.err.println("❌ Error obteniendo inventario: " + e.getMessage());
-            return new HashMap<>();
-        }
-    }
-
-    /**
-     * ✅ NUEVO: Verifica la integridad de chunks esperados
-     * Compara contra una lista de chunks que el Master dice que deberían estar aquí
-     */
-    public Map<String, Object> verifyIntegrity(Map<String, List<Integer>> expectedChunks) {
-        Map<String, List<Integer>> actualInventory = getChunkInventory();
-
-        Map<String, Object> report = new HashMap<>();
-        List<String> missingChunks = new ArrayList<>();
-        List<String> extraChunks = new ArrayList<>();
-
-        // Verificar chunks esperados
-        for (Map.Entry<String, List<Integer>> entry : expectedChunks.entrySet()) {
-            String imagenId = entry.getKey();
-            List<Integer> expectedIndices = entry.getValue();
-            List<Integer> actualIndices = actualInventory.getOrDefault(imagenId, new ArrayList<>());
-
-            for (Integer index : expectedIndices) {
-                if (!actualIndices.contains(index)) {
-                    missingChunks.add(imagenId + "_chunk_" + index);
-                }
-            }
-        }
-
-        // Detectar chunks no esperados (huérfanos)
-        for (Map.Entry<String, List<Integer>> entry : actualInventory.entrySet()) {
-            String imagenId = entry.getKey();
-            List<Integer> actualIndices = entry.getValue();
-            List<Integer> expectedIndices = expectedChunks.getOrDefault(imagenId, new ArrayList<>());
-
-            for (Integer index : actualIndices) {
-                if (!expectedIndices.contains(index)) {
-                    extraChunks.add(imagenId + "_chunk_" + index);
-                }
-            }
-        }
-
-        report.put("healthy", missingChunks.isEmpty());
-        report.put("missingChunks", missingChunks);
-        report.put("extraChunks", extraChunks);
-        report.put("totalExpected", expectedChunks.values().stream()
-                .mapToInt(List::size).sum());
-        report.put("totalActual", actualInventory.values().stream()
-                .mapToInt(List::size).sum());
-
-        return report;
     }
 }
