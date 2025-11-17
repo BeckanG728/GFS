@@ -2,6 +2,8 @@ package com.tpdteam3.master.service;
 
 import com.tpdteam3.master.model.FileMetadata;
 import com.tpdteam3.master.model.FileMetadata.ChunkMetadata;
+import com.tpdteam3.master.model.FileWithReplicationStatus;
+import com.tpdteam3.master.model.ReplicationStatus;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -142,7 +144,7 @@ public class ReplicationMonitorService {
             }
 
             // 1. PRIORIDAD: Re-replicar archivos degradados
-            degradedFiles.sort(Comparator.comparingInt(f -> f.status.currentMinReplicas));
+            degradedFiles.sort(Comparator.comparingInt(f -> f.getStatus().getCurrentMinReplicas()));
 
             int replicationsStarted = 0;
             for (FileWithReplicationStatus degradedFile : degradedFiles) {
@@ -151,11 +153,11 @@ public class ReplicationMonitorService {
                     break;
                 }
 
-                if (currentlyReplicating.contains(degradedFile.file.getImagenId())) {
+                if (currentlyReplicating.contains(degradedFile.getFile().getImagenId())) {
                     continue;
                 }
 
-                replicateFile(degradedFile.file, degradedFile.status, healthyServers);
+                replicateFile(degradedFile.getFile(), degradedFile.getStatus(), healthyServers);
                 replicationsStarted++;
             }
 
@@ -166,13 +168,13 @@ public class ReplicationMonitorService {
             // 2. SEGUNDA PRIORIDAD: Limpiar réplicas excedentes (CON CUIDADO)
             int cleanupStarted = 0;
             for (FileWithReplicationStatus overReplicatedFile : overReplicatedFiles) {
-                if (currentlyReplicating.contains(overReplicatedFile.file.getImagenId())) {
+                if (currentlyReplicating.contains(overReplicatedFile.getFile().getImagenId())) {
                     continue; // Ya está siendo procesado
                 }
 
                 // ✅ NUEVO: Solo limpiar si realmente hay exceso significativo
-                if (overReplicatedFile.status.currentMinReplicas > TARGET_REPLICATION_FACTOR) {
-                    cleanupExcessReplicas(overReplicatedFile.file, overReplicatedFile.status, healthyServers);
+                if (overReplicatedFile.getStatus().getCurrentMinReplicas() > TARGET_REPLICATION_FACTOR) {
+                    cleanupExcessReplicas(overReplicatedFile.getFile(), overReplicatedFile.getStatus(), healthyServers);
                     cleanupStarted++;
                 }
             }
@@ -243,9 +245,9 @@ public class ReplicationMonitorService {
         System.out.println("║  🔄 INICIANDO RE-REPLICACIÓN                         ║");
         System.out.println("╚════════════════════════════════════════════════════════╝");
         System.out.println("   ImagenId: " + imagenId);
-        System.out.println("   Réplicas actuales: " + status.currentMinReplicas);
+        System.out.println("   Réplicas actuales: " + status.getCurrentMinReplicas());
         System.out.println("   Réplicas objetivo: " + TARGET_REPLICATION_FACTOR);
-        System.out.println("   Chunks a replicar: " + status.chunksNeedingReplication);
+        System.out.println("   Chunks a replicar: " + status.getChunksNeedingReplication());
         System.out.println();
 
         // Ejecutar en thread separado para no bloquear el monitoreo
@@ -361,7 +363,7 @@ public class ReplicationMonitorService {
         System.out.println("║  🧹 LIMPIANDO RÉPLICAS EXCEDENTES                     ║");
         System.out.println("╚════════════════════════════════════════════════════════╝");
         System.out.println("   ImagenId: " + imagenId);
-        System.out.println("   Réplicas máximas actuales: " + status.currentMaxReplicas);
+        System.out.println("   Réplicas máximas actuales: " + status.getCurrentMaxReplicas());
         System.out.println("   Réplicas objetivo: " + TARGET_REPLICATION_FACTOR);
         System.out.println();
 
@@ -502,46 +504,5 @@ public class ReplicationMonitorService {
         return stats;
     }
 
-    /**
-     * Clase para almacenar estado de replicación de un archivo
-     */
-    private static class ReplicationStatus {
-        final int totalChunks;
-        final int currentMinReplicas;
-        final int currentMaxReplicas;
-        final int totalReplicas;
-        final int chunksNeedingReplication;
 
-        ReplicationStatus(int totalChunks, int currentMinReplicas, int currentMaxReplicas,
-                          int totalReplicas, int chunksNeedingReplication) {
-            this.totalChunks = totalChunks;
-            this.currentMinReplicas = currentMinReplicas;
-            this.currentMaxReplicas = currentMaxReplicas;
-            this.totalReplicas = totalReplicas;
-            this.chunksNeedingReplication = chunksNeedingReplication;
-        }
-
-        boolean needsReplication() {
-            return chunksNeedingReplication > 0;
-        }
-
-        boolean hasExcessReplicas() {
-            // ✅ MEJORADO: Solo reportar exceso si hay MÁS de TARGET + 1
-            // Esto evita ciclos donde se re-replica y luego se limpia constantemente
-            return currentMaxReplicas > TARGET_REPLICATION_FACTOR + 1;
-        }
-    }
-
-    /**
-     * Clase para combinar archivo y su estado de replicación
-     */
-    private static class FileWithReplicationStatus {
-        final FileMetadata file;
-        final ReplicationStatus status;
-
-        FileWithReplicationStatus(FileMetadata file, ReplicationStatus status) {
-            this.file = file;
-            this.status = status;
-        }
-    }
 }

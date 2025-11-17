@@ -1,5 +1,6 @@
 package com.tpdteam3.master.service;
 
+import com.tpdteam3.master.model.ChunkserverStatus;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -421,115 +422,5 @@ public class ChunkserverHealthMonitor {
         }
 
         return added;
-    }
-
-    /**
-     * Clase interna que mantiene el estado de salud de un chunkserver individual.
-     * Implementa lógica de detección de fallos con umbral de tolerancia.
-     */
-    private class ChunkserverStatus {
-        private final String url;
-        private int consecutiveFailures = 0;
-        private int consecutiveSuccesses = 0;
-        private boolean healthy = true; // Optimista: asumimos UP al inicio
-        private long lastCheckTime = 0;
-        private long lastSuccessTime = 0;
-        private long lastFailureTime = 0;
-        private int totalChecks = 0;
-        private int totalSuccesses = 0;
-        private int totalFailures = 0;
-
-        // ✅ NUEVO: Almacenar último inventario conocido
-        private Map<String, List<Integer>> lastInventory = null;
-
-        public ChunkserverStatus(String url) {
-            this.url = url;
-        }
-
-        /**
-         * ✅ MEJORADO: Registra resultado de un health check e inventario.
-         *
-         * @param success   true si el check fue exitoso, false si falló
-         * @param inventory Inventario de chunks obtenido (null si el check falló)
-         */
-        public synchronized void recordCheck(boolean success, Map<String, List<Integer>> inventory) {
-            totalChecks++;
-            lastCheckTime = System.currentTimeMillis();
-
-            if (success) {
-                totalSuccesses++;
-                lastSuccessTime = lastCheckTime;
-                consecutiveSuccesses++;
-                consecutiveFailures = 0;
-
-                // ✅ Actualizar inventario
-                lastInventory = inventory;
-
-                // Marcar como healthy si alcanza el umbral de recuperación
-                if (!healthy && consecutiveSuccesses >= RECOVERY_THRESHOLD) {
-                    healthy = true;
-                }
-            } else {
-                totalFailures++;
-                lastFailureTime = lastCheckTime;
-                consecutiveFailures++;
-                consecutiveSuccesses = 0;
-
-                // Marcar como unhealthy si alcanza el umbral de fallos
-                if (healthy && consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
-                    healthy = false;
-                }
-            }
-        }
-
-        // Getters
-        public boolean isHealthy() {
-            return healthy;
-        }
-
-        public String getUrl() {
-            return url;
-        }
-
-        public int getConsecutiveFailures() {
-            return consecutiveFailures;
-        }
-
-        public int getConsecutiveSuccesses() {
-            return consecutiveSuccesses;
-        }
-
-        public long getLastCheckTime() {
-            return lastCheckTime;
-        }
-
-        public long getLastSuccessTime() {
-            return lastSuccessTime;
-        }
-
-        public long getLastFailureTime() {
-            return lastFailureTime;
-        }
-
-        public int getTotalChecks() {
-            return totalChecks;
-        }
-
-        public int getTotalSuccesses() {
-            return totalSuccesses;
-        }
-
-        public int getTotalFailures() {
-            return totalFailures;
-        }
-
-        public Map<String, List<Integer>> getLastInventory() {
-            return lastInventory;
-        }
-
-        public double getUptimePercentage() {
-            if (totalChecks == 0) return 100.0;
-            return (totalSuccesses * 100.0) / totalChecks;
-        }
     }
 }

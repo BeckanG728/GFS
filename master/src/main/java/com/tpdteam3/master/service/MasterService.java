@@ -1,5 +1,6 @@
 package com.tpdteam3.master.service;
 
+import com.tpdteam3.master.model.ChunkserverInfo;
 import com.tpdteam3.master.model.FileMetadata;
 import com.tpdteam3.master.model.FileMetadata.ChunkMetadata;
 import jakarta.annotation.PostConstruct;
@@ -408,32 +409,5 @@ public class MasterService {
         stats.put("persistenceStats", persistenceService.getStorageStats());
 
         return stats;
-    }
-
-    /**
-     * Clase interna para información de chunkserver
-     */
-    private static class ChunkserverInfo {
-        private final String url;
-        private final String id;
-        private final long registrationTime;
-
-        public ChunkserverInfo(String url, String id) {
-            this.url = url;
-            this.id = id;
-            this.registrationTime = System.currentTimeMillis();
-        }
-
-        public String getUrl() {
-            return url;
-        }
-
-        public String getId() {
-            return id;
-        }
-
-        public long getRegistrationTime() {
-            return registrationTime;
-        }
     }
 }

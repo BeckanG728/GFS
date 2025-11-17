@@ -2,6 +2,7 @@ package com.tpdteam3.master.controller;
 
 import com.tpdteam3.master.model.FileMetadata;
 import com.tpdteam3.master.service.IntegrityMonitorService;
+import com.tpdteam3.master.service.MasterHeartbeatHandler;
 import com.tpdteam3.master.service.MasterService;
 import com.tpdteam3.master.service.ReplicationMonitorService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -34,6 +35,74 @@ public class MasterController {
     private IntegrityMonitorService integrityMonitor;
 
     private final RestTemplate restTemplate = new RestTemplate();
+
+
+    @Autowired
+    private MasterHeartbeatHandler heartbeatHandler;
+
+    /**
+     * ✅ NUEVO ENDPOINT: Recibe heartbeats de chunkservers
+     * <p>
+     * Este endpoint reemplaza el sistema de polling del Master.
+     * Los chunkservers llaman este endpoint cada 10 segundos para:
+     * 1. Informar que están vivos
+     * 2. Enviar inventario actualizado de chunks
+     * 3. Reportar métricas de salud
+     * <p>
+     * El Master puede responder con comandos opcionales que el chunkserver debe ejecutar.
+     *
+     * @param heartbeatData Datos del heartbeat enviados por el chunkserver
+     * @return Respuesta con acknowledgment y comandos opcionales
+     */
+    @PostMapping("/heartbeat")
+    public ResponseEntity<Map<String, Object>> receiveHeartbeat(
+            @RequestBody Map<String, Object> heartbeatData) {
+        try {
+            // Validar datos requeridos
+            if (!heartbeatData.containsKey("url") || !heartbeatData.containsKey("chunkserverId")) {
+                Map<String, Object> error = new HashMap<>();
+                error.put("status", "error");
+                error.put("message", "Missing required fields: url and chunkserverId");
+                return ResponseEntity.badRequest().body(error);
+            }
+
+            // Procesar heartbeat
+            Map<String, Object> response = heartbeatHandler.processHeartbeat(heartbeatData);
+
+            return ResponseEntity.ok(response);
+
+        } catch (Exception e) {
+            System.err.println("❌ Error procesando heartbeat: " + e.getMessage());
+            e.printStackTrace();
+
+            Map<String, Object> error = new HashMap<>();
+            error.put("status", "error");
+            error.put("message", "Error processing heartbeat: " + e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(error);
+        }
+    }
+
+    /**
+     * ✅ MODIFICADO: Ahora usa el heartbeat handler en lugar del health monitor
+     */
+    @GetMapping("/chunkservers")
+    public ResponseEntity<Map<String, Object>> listChunkservers() {
+        List<String> allServers = masterService.getAllChunkservers();
+        List<String> healthyServers = heartbeatHandler.getHealthyChunkservers();
+        List<String> unhealthyServers = heartbeatHandler.getUnhealthyChunkservers();
+
+        Map<String, Object> response = new HashMap<>();
+        response.put("status", "success");
+        response.put("total", allServers.size());
+        response.put("healthy", healthyServers.size());
+        response.put("unhealthy", unhealthyServers.size());
+        response.put("allServers", allServers);
+        response.put("healthyServers", healthyServers);
+        response.put("unhealthyServers", unhealthyServers);
+
+        return ResponseEntity.ok(response);
+    }
+
 
     /**
      * Planifica la subida de un archivo con replicación.
@@ -374,28 +443,5 @@ public class MasterController {
             error.put("message", e.getMessage());
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(error);
         }
-    }
-
-    /**
-     * Lista todos los chunkservers registrados con su estado.
-     *
-     * @return Información de servidores activos e inactivos
-     */
-    @GetMapping("/chunkservers")
-    public ResponseEntity<Map<String, Object>> listChunkservers() {
-        List<String> allServers = masterService.getAllChunkservers();
-        List<String> healthyServers = (List<String>) masterService.getHealthStatus().get("healthyServers");
-        List<String> unhealthyServers = (List<String>) masterService.getHealthStatus().get("unhealthyServers");
-
-        Map<String, Object> response = new HashMap<>();
-        response.put("status", "success");
-        response.put("total", allServers.size());
-        response.put("healthy", healthyServers.size());
-        response.put("unhealthy", unhealthyServers.size());
-        response.put("allServers", allServers);
-        response.put("healthyServers", healthyServers);
-        response.put("unhealthyServers", unhealthyServers);
-
-        return ResponseEntity.ok(response);
     }
 }
