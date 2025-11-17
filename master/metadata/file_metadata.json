@@ -68,6 +68,16 @@
       "chunkserverId" : "http://localhost:9005/chunkserver5",
       "chunkserverUrl" : "http://localhost:9005/chunkserver5",
       "replicaIndex" : 2
+    }, {
+      "chunkIndex" : 0,
+      "chunkserverId" : "http://localhost:9003/chunkserver3",
+      "chunkserverUrl" : "http://localhost:9003/chunkserver3",
+      "replicaIndex" : 2
+    }, {
+      "chunkIndex" : 1,
+      "chunkserverId" : "http://localhost:9001/chunkserver1",
+      "chunkserverUrl" : "http://localhost:9001/chunkserver1",
+      "replicaIndex" : 2
     } ],
     "timestamp" : 1763355381838
   },

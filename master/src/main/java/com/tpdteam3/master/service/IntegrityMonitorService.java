@@ -38,7 +38,7 @@ import java.util.stream.Collectors;
 @Service
 public class IntegrityMonitorService {
 
-    // Usar @Lazy para romper el ciclo de dependencias
+    // @Lazy para romper el ciclo de dependencias
     @Autowired
     @Lazy
     private MasterService masterService;
@@ -75,7 +75,7 @@ public class IntegrityMonitorService {
     @PostConstruct
     public void init() {
         System.out.println("╔════════════════════════════════════════════════════════╗");
-        System.out.println("║  🔧 INTEGRITY MONITOR - REPARACIÓN AUTOMÁTICA        ║");
+        System.out.println("║  🔧 INTEGRITY MONITOR - REPARACIÓN AUTOMÁTICA          ║");
         System.out.println("╚════════════════════════════════════════════════════════╝");
         System.out.println("✅ Modo: Reparación automática activada");
         System.out.println("🎯 Detecta eliminaciones manuales de chunks");

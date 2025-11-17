@@ -24,7 +24,7 @@ public class MasterService {
     private MasterHeartbeatHandler heartbeatHandler;
 
 
-    // ✅ NUEVO: Inyectar IntegrityMonitor con @Lazy para evitar ciclos
+    // Inyectar IntegrityMonitor con @Lazy para evitar ciclos
     @Autowired
     @Lazy
     private IntegrityMonitorService integrityMonitor;
