@@ -12,11 +12,11 @@ import java.util.HashMap;
 import java.util.Map;
 
 @Service
-public class DFSChunkServerClient {
+public class DFSChunkserverClient {
 
     private final RestTemplate restTemplate;
 
-    public DFSChunkServerClient() {
+    public DFSChunkserverClient() {
         SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
         factory.setConnectTimeout(10000);
         factory.setReadTimeout(30000);

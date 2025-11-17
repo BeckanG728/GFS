@@ -13,10 +13,10 @@ public class DFSService {
     private static final int CHUNK_SIZE = 32 * 1024; // 32KB
 
     private final DFSMasterClient masterClient;
-    private final DFSChunkServerClient chunkServerClient;
+    private final DFSChunkserverClient chunkServerClient;
 
     @Autowired
-    public DFSService(DFSMasterClient masterClient, DFSChunkServerClient chunkServerClient) {
+    public DFSService(DFSMasterClient masterClient, DFSChunkserverClient chunkServerClient) {
         this.masterClient = masterClient;
         this.chunkServerClient = chunkServerClient;
     }
