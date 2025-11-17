@@ -4,6 +4,7 @@ import com.tpdteam3.master.model.FileMetadata;
 import com.tpdteam3.master.model.FileMetadata.ChunkMetadata;
 import jakarta.annotation.PostConstruct;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 
 import java.util.*;
@@ -17,6 +18,11 @@ public class MasterService {
 
     @Autowired
     private ChunkserverHealthMonitor healthMonitor;
+
+    // ✅ NUEVO: Inyectar IntegrityMonitor con @Lazy para evitar ciclos
+    @Autowired
+    @Lazy
+    private IntegrityMonitorService integrityMonitor;
 
     // Almacena metadatos de archivos en memoria (cargados desde disco)
     private Map<String, FileMetadata> fileMetadataStore;
@@ -60,12 +66,15 @@ public class MasterService {
     }
 
     /**
-     * ✅ NUEVO: Registra un chunkserver con ID opcional
+     * ✅ MEJORADO: Registra un chunkserver con ID opcional
+     * Y verifica su integridad al registrarse
      */
     public synchronized void registerChunkserver(String url, String id) {
-        if (registeredChunkservers.containsKey(url)) {
+        boolean isNewRegistration = !registeredChunkservers.containsKey(url);
+
+        if (!isNewRegistration) {
             System.out.println("⚠️  Chunkserver ya registrado: " + url);
-            return;
+            // Aunque ya esté registrado, verificar integridad por si acaso
         }
 
         String chunkserverId = (id != null && !id.isEmpty()) ? id : generateChunkserverId(url);
@@ -75,11 +84,30 @@ public class MasterService {
         healthMonitor.registerChunkserver(url);
 
         System.out.println("╔════════════════════════════════════════════════════════╗");
-        System.out.println("║  ✅ NUEVO CHUNKSERVER REGISTRADO                      ║");
+        System.out.println("║  ✅ CHUNKSERVER " + (isNewRegistration ? "REGISTRADO" : "RE-REGISTRADO") + "                      ║");
         System.out.println("╚════════════════════════════════════════════════════════╝");
         System.out.println("   URL: " + url);
         System.out.println("   ID: " + chunkserverId);
         System.out.println("   Total registrados: " + registeredChunkservers.size());
+
+        // ✅ NUEVO: Verificar integridad al registrar/re-registrar
+        // Esto detecta chunks eliminados mientras el Master estaba caído
+        if (!isNewRegistration || fileMetadataStore.size() > 0) {
+            System.out.println("   🔍 Verificando integridad de chunks...");
+
+            // Esperar un momento para que el chunkserver esté completamente listo
+            try {
+                Thread.sleep(1000); // 1 segundo
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+
+            // Disparar verificación de integridad
+            if (integrityMonitor != null) {
+                integrityMonitor.onChunkserverRegistered(url);
+            }
+        }
+
         System.out.println();
     }
 

@@ -191,6 +191,92 @@ public class IntegrityMonitorService {
     }
 
     /**
+     * ✅ NUEVO: Llamado cuando un chunkserver se registra o re-registra.
+     * Verifica que el servidor tenga todos los chunks que debería tener.
+     * Esto detecta eliminaciones que ocurrieron mientras el Master estaba caído.
+     *
+     * @param chunkserverUrl URL del servidor registrado
+     */
+    public synchronized void onChunkserverRegistered(String chunkserverUrl) {
+        System.out.println("🔍 Verificando integridad de servidor registrado: " + chunkserverUrl);
+
+        try {
+            // Obtener inventario actual del servidor
+            Map<String, List<Integer>> currentInventory =
+                    healthMonitor.getChunkserverInventory(chunkserverUrl);
+
+            if (currentInventory == null || currentInventory.isEmpty()) {
+                System.out.println("   ⚠️  No se pudo obtener inventario del servidor");
+                return;
+            }
+
+            // Obtener chunks que este servidor DEBERÍA tener según el Master
+            Map<String, Set<Integer>> expectedChunks = buildExpectedChunksForServer(chunkserverUrl);
+
+            if (expectedChunks.isEmpty()) {
+                System.out.println("   ℹ️  No hay chunks esperados para este servidor");
+                return;
+            }
+
+            // Comparar y detectar diferencias
+            Set<String> missingChunks = findMissingChunks(expectedChunks, currentInventory);
+
+            if (missingChunks.isEmpty()) {
+                System.out.println("   ✅ Servidor tiene todos los chunks esperados");
+                return;
+            }
+
+            System.out.println("   🚨 CHUNKS FALTANTES DETECTADOS: " + missingChunks.size());
+            System.out.println("      (Probablemente eliminados mientras Master estaba caído)");
+
+            // Mostrar algunos ejemplos
+            missingChunks.stream().limit(5).forEach(chunk ->
+                    System.out.println("      - " + chunk)
+            );
+
+            if (missingChunks.size() > 5) {
+                System.out.println("      ... y " + (missingChunks.size() - 5) + " más");
+            }
+
+            System.out.println("   🔧 Iniciando reparación automática...");
+            System.out.println();
+
+            // Reparar chunks faltantes
+            int repaired = 0;
+            int failed = 0;
+
+            for (String chunkId : missingChunks) {
+                try {
+                    String[] parts = chunkId.split("_chunk_");
+                    if (parts.length != 2) continue;
+
+                    String imagenId = parts[0];
+                    int chunkIndex = Integer.parseInt(parts[1]);
+
+                    repairMissingChunk(imagenId, chunkIndex, chunkserverUrl);
+                    repaired++;
+
+                } catch (Exception e) {
+                    System.err.println("      ❌ Error reparando " + chunkId + ": " + e.getMessage());
+                    failed++;
+                }
+            }
+
+            System.out.println();
+            System.out.println("   📊 Resultado de verificación al registro:");
+            System.out.println("      ✅ Chunks reparados: " + repaired);
+            if (failed > 0) {
+                System.out.println("      ❌ Fallos: " + failed);
+            }
+            System.out.println();
+
+        } catch (Exception e) {
+            System.err.println("   ❌ Error verificando integridad: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+
+    /**
      * 🔧 MÉTODO PRINCIPAL DE REPARACIÓN
      * <p>
      * Repara un chunk específico que falta en un servidor:

@@ -48,6 +48,10 @@ public class ChunkserverRegistrationService {
     private String chunkserverUrl;
     private boolean registered = false;
 
+    // ✅ NUEVO: Tracking de conexión con el Master
+    private int consecutiveFailures = 0;
+    private static final int MAX_FAILURES_BEFORE_REREGISTER = 3;
+
     public ChunkserverRegistrationService() {
         this.restTemplate = new RestTemplate();
     }
@@ -69,11 +73,12 @@ public class ChunkserverRegistrationService {
         // Intentar registro con reintentos
         registerWithRetry();
 
-        // Programar heartbeats cada 30 segundos
+        // ✅ MEJORADO: Programar verificación periódica cada 15 segundos
+        // Esto detectará cuando el Master se reinicie
         scheduler.scheduleAtFixedRate(
-                this::sendHeartbeat,
-                30,
-                30,
+                this::verifyAndMaintainRegistration,
+                15,
+                15,
                 TimeUnit.SECONDS
         );
     }
@@ -110,6 +115,7 @@ public class ChunkserverRegistrationService {
                 System.out.println("📡 Intento de registro #" + attempts + "...");
                 registerWithMaster();
                 registered = true;
+                consecutiveFailures = 0; // ✅ NUEVO: Reset contador
                 System.out.println("✅ Registro exitoso en el Master!");
                 System.out.println();
                 return;
@@ -160,23 +166,67 @@ public class ChunkserverRegistrationService {
     }
 
     /**
-     * Envía heartbeat al Master para mantener el registro activo
-     * El Master usa health checks para detectar caídas, pero esto es opcional
+     * ✅ NUEVO: Verifica el estado del Master y mantiene el registro activo
+     * Si el Master se reinició, detecta que no nos conoce y nos re-registramos
      */
-    private void sendHeartbeat() {
-        if (!registered) {
-            // Intentar re-registrarse si no estamos registrados
-            registerWithRetry();
-            return;
-        }
-
+    private void verifyAndMaintainRegistration() {
         try {
-            String healthUrl = masterUrl + "/api/master/health";
-            restTemplate.getForEntity(healthUrl, Map.class);
-            // Heartbeat implícito: si el Master responde, sabemos que está vivo
+            // Verificar si el Master nos conoce
+            String chunkserversUrl = masterUrl + "/api/master/chunkservers";
+            ResponseEntity<Map> response = restTemplate.getForEntity(chunkserversUrl, Map.class);
+
+            if (response.getStatusCode().is2xxSuccessful()) {
+                Map<String, Object> body = response.getBody();
+
+                if (body != null) {
+                    // Verificar si estamos en la lista de servidores
+                    @SuppressWarnings("unchecked")
+                    java.util.List<String> allServers =
+                            (java.util.List<String>) body.get("allServers");
+
+                    if (allServers == null || !allServers.contains(chunkserverUrl)) {
+                        // ❌ El Master no nos conoce - probablemente se reinició
+                        System.out.println("⚠️  DETECTADO: Master no nos tiene registrado");
+                        System.out.println("   (El Master probablemente se reinició)");
+                        System.out.println("   🔄 Iniciando re-registro...");
+
+                        registered = false;
+                        consecutiveFailures = 0;
+                        registerWithRetry();
+
+                    } else {
+                        // ✅ Todo bien - el Master nos conoce
+                        consecutiveFailures = 0;
+
+                        if (!registered) {
+                            System.out.println("✅ Reconexión confirmada con el Master");
+                            registered = true;
+                        }
+                    }
+                }
+            }
+
         } catch (Exception e) {
-            System.err.println("⚠️  No se pudo contactar al Master: " + e.getMessage());
-            // El Master nos re-detectará con sus health checks
+            consecutiveFailures++;
+
+            if (consecutiveFailures >= MAX_FAILURES_BEFORE_REREGISTER) {
+                if (registered) {
+                    System.err.println("⚠️  Perdida comunicación con Master (" +
+                                       consecutiveFailures + " fallos consecutivos)");
+                    System.err.println("   Esperando reconexión...");
+                    registered = false;
+                }
+
+                // Intentar re-registrarse
+                try {
+                    registerWithMaster();
+                    registered = true;
+                    consecutiveFailures = 0;
+                    System.out.println("✅ Re-registro exitoso después de fallos");
+                } catch (Exception reregisterEx) {
+                    // Falló el re-registro, seguir intentando en próximo ciclo
+                }
+            }
         }
     }
 
