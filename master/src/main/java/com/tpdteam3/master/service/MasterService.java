@@ -20,6 +20,10 @@ public class MasterService {
     @Autowired
     private ChunkserverHealthMonitor healthMonitor;
 
+    @Autowired
+    private MasterHeartbeatHandler heartbeatHandler;
+
+
     // ✅ NUEVO: Inyectar IntegrityMonitor con @Lazy para evitar ciclos
     @Autowired
     @Lazy
@@ -164,7 +168,7 @@ public class MasterService {
         }
 
         // ✅ OBTENER SOLO CHUNKSERVERS ACTIVOS
-        List<String> healthyChunkservers = healthMonitor.getHealthyChunkservers();
+        List<String> healthyChunkservers = heartbeatHandler.getHealthyChunkservers();
 
         if (healthyChunkservers.isEmpty()) {
             throw new RuntimeException(
@@ -279,7 +283,7 @@ public class MasterService {
         FileMetadata filteredMetadata = new FileMetadata(metadata.getImagenId(), metadata.getSize());
         filteredMetadata.setTimestamp(metadata.getTimestamp());
 
-        List<String> healthyServers = healthMonitor.getHealthyChunkservers();
+        List<String> healthyServers = heartbeatHandler.getHealthyChunkservers();
 
         for (ChunkMetadata chunk : metadata.getChunks()) {
             if (healthyServers.contains(chunk.getChunkserverUrl())) {
@@ -349,8 +353,8 @@ public class MasterService {
      * Estado de salud del sistema
      */
     public Map<String, Object> getHealthStatus() {
-        List<String> healthy = healthMonitor.getHealthyChunkservers();
-        List<String> unhealthy = healthMonitor.getUnhealthyChunkservers();
+        List<String> healthy = heartbeatHandler.getHealthyChunkservers();
+        List<String> unhealthy = heartbeatHandler.getUnhealthyChunkservers();
 
         Map<String, Object> health = new HashMap<>();
         health.put("status", healthy.size() >= REPLICATION_FACTOR ? "HEALTHY" : "DEGRADED");
@@ -363,7 +367,7 @@ public class MasterService {
         health.put("canMaintainReplication", healthy.size() >= REPLICATION_FACTOR);
         health.put("filesInMemory", fileMetadataStore.size());
         health.putAll(persistenceService.getStorageStats());
-        health.put("chunkserverDetails", healthMonitor.getDetailedStatus());
+        health.put("chunkserverDetails", heartbeatHandler.getDetailedStatus());
 
         return health;
     }
@@ -374,7 +378,7 @@ public class MasterService {
     public Map<String, Object> getStats() {
         Map<String, Object> stats = new HashMap<>();
 
-        List<String> healthy = healthMonitor.getHealthyChunkservers();
+        List<String> healthy = heartbeatHandler.getHealthyChunkservers();
 
         stats.put("totalFiles", fileMetadataStore.size());
         stats.put("totalChunkservers", registeredChunkservers.size());

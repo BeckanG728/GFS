@@ -318,6 +318,31 @@ public class MasterHeartbeatHandler {
     }
 
     /**
+     * Obtiene el estado detallado de todos los chunkservers.
+     */
+    public Map<String, Map<String, Object>> getDetailedStatus() {
+        Map<String, Map<String, Object>> detailedStatus = new HashMap<>();
+
+        for (ChunkserverHeartbeatInfo info : chunkserverHeartbeats.values()) {
+            Map<String, Object> details = new HashMap<>();
+            details.put("healthy", info.isAlive());
+            details.put("consecutiveFailures", 0); // No aplicable en heartbeats
+            details.put("consecutiveSuccesses", 0); // No aplicable en heartbeats
+            details.put("lastCheckTime", info.getLastHeartbeatTime());
+            details.put("lastSuccessTime", info.getLastHeartbeatTime());
+            details.put("lastFailureTime", 0L);
+            details.put("totalChecks", info.getTotalHeartbeats());
+            details.put("totalSuccesses", info.getTotalHeartbeats());
+            details.put("totalFailures", 0);
+            details.put("uptimePercentage", info.getUptimePercentage());
+
+            detailedStatus.put(info.getUrl(), details);
+        }
+
+        return detailedStatus;
+    }
+
+    /**
      * Clase interna que mantiene el estado de heartbeats de un chunkserver
      */
     private static class ChunkserverHeartbeatInfo {

@@ -29,7 +29,7 @@ public class ReplicationMonitorService {
     private MasterService masterService;
 
     @Autowired
-    private ChunkserverHealthMonitor healthMonitor;
+    private MasterHeartbeatHandler heartbeatHandler;
 
     private final RestTemplate restTemplate;
     private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
@@ -99,7 +99,7 @@ public class ReplicationMonitorService {
      */
     private void checkAndRereplicate() {
         try {
-            List<String> healthyServers = healthMonitor.getHealthyChunkservers();
+            List<String> healthyServers = heartbeatHandler.getHealthyChunkservers();
 
             // Solo proceder si hay suficientes servidores para mejorar la replicación
             if (healthyServers.size() < 2) {

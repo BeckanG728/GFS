@@ -60,21 +60,21 @@ public class ChunkserverHealthMonitor {
     @PostConstruct
     public void startMonitoring() {
         System.out.println("╔════════════════════════════════════════════════════════╗");
-        System.out.println("║  🏥 INICIANDO HEALTH MONITOR                          ║");
+        System.out.println("║  🏥 HEALTH MONITOR - MODO PASIVO                      ║");
         System.out.println("╚════════════════════════════════════════════════════════╝");
-        System.out.println("⏱️  Intervalo de verificación: " + HEALTH_CHECK_INTERVAL_SECONDS + " segundos");
-        System.out.println("⚠️  Fallos antes de marcar DOWN: " + MAX_CONSECUTIVE_FAILURES);
-        System.out.println("✅ Éxitos para marcar UP: " + RECOVERY_THRESHOLD);
+        System.out.println("⚠️  Este servicio está en modo pasivo");
+        System.out.println("✅ Los heartbeats son recibidos por MasterHeartbeatHandler");
         System.out.println();
 
         // Iniciar monitoreo periódico
-        scheduler.scheduleAtFixedRate(
-                this::performHealthChecks,
-                0, // Iniciar inmediatamente
-                HEALTH_CHECK_INTERVAL_SECONDS,
-                TimeUnit.SECONDS
-        );
+//        scheduler.scheduleAtFixedRate(
+//                this::performHealthChecks,
+//                0, // Iniciar inmediatamente
+//                HEALTH_CHECK_INTERVAL_SECONDS,
+//                TimeUnit.SECONDS
+//        );
     }
+
 
     /**
      * Detiene el monitoreo al apagar el servicio.
@@ -104,9 +104,6 @@ public class ChunkserverHealthMonitor {
         if (!chunkserverStatuses.containsKey(url)) {
             chunkserverStatuses.put(url, new ChunkserverStatus(url));
             System.out.println("📋 Chunkserver registrado para monitoreo: " + url);
-
-            // Hacer health check inmediato para obtener estado inicial
-            checkChunkserverHealth(url);
         }
     }
 
@@ -199,151 +196,6 @@ public class ChunkserverHealthMonitor {
             return status.getLastInventory();
         }
         return new HashMap<>();
-    }
-
-    /**
-     * Ejecuta health checks en TODOS los chunkservers registrados.
-     * Se ejecuta periódicamente cada HEALTH_CHECK_INTERVAL_SECONDS segundos.
-     * <p>
-     * Para cada servidor:
-     * 1. Llama a /api/chunk/health
-     * 2. Obtiene inventario de chunks
-     * 3. Actualiza estado (UP/DOWN)
-     * 4. Notifica cambios de estado
-     * 5. ✅ Dispara verificación de integridad si detecta cambios
-     */
-    private void performHealthChecks() {
-        if (chunkserverStatuses.isEmpty()) {
-            return;
-        }
-
-        System.out.println("🏥 Ejecutando health checks...");
-
-        List<String> urls = new ArrayList<>(chunkserverStatuses.keySet());
-
-        for (String url : urls) {
-            checkChunkserverHealth(url);
-        }
-
-        // Mostrar resumen
-        List<String> healthy = getHealthyChunkservers();
-        List<String> unhealthy = getUnhealthyChunkservers();
-
-        System.out.println("   ✅ Activos: " + healthy.size() + "/" + chunkserverStatuses.size());
-        if (!unhealthy.isEmpty()) {
-            System.out.println("   ❌ Inactivos: " + unhealthy);
-        }
-        System.out.println();
-    }
-
-    /**
-     * ✅ MEJORADO: Verifica la salud de un chunkserver específico Y obtiene su inventario.
-     * <p>
-     * Proceso:
-     * 1. Llama a GET /api/chunk/health del chunkserver
-     * 2. Verifica que responda con status: "UP"
-     * 3. Extrae el inventario de chunks del response
-     * 4. Actualiza el estado del servidor
-     * 5. Si detecta cambios en inventario, notifica al IntegrityMonitor
-     *
-     * @param url URL del chunkserver a verificar
-     */
-    private void checkChunkserverHealth(String url) {
-        ChunkserverStatus status = chunkserverStatuses.get(url);
-        if (status == null) {
-            return;
-        }
-
-        boolean isHealthy = false;
-        Map<String, List<Integer>> currentInventory = null;
-
-        try {
-            String healthUrl = url + "/api/chunk/health";
-
-            // Llamar al health endpoint que ahora incluye inventario
-            @SuppressWarnings("unchecked")
-            Map<String, Object> response = restTemplate.getForObject(healthUrl, Map.class);
-
-            // Verificar que la respuesta sea válida
-            isHealthy = response != null && "UP".equals(response.get("status"));
-
-            // ✅ NUEVO: Extraer inventario de chunks si está disponible
-            if (isHealthy && response.containsKey("inventory")) {
-                try {
-                    @SuppressWarnings("unchecked")
-                    Map<String, Object> rawInventory = (Map<String, Object>) response.get("inventory");
-
-                    // Convertir inventario a formato esperado
-                    currentInventory = new HashMap<>();
-                    for (Map.Entry<String, Object> entry : rawInventory.entrySet()) {
-                        String imagenId = entry.getKey();
-                        @SuppressWarnings("unchecked")
-                        List<Integer> indices = (List<Integer>) entry.getValue();
-                        currentInventory.put(imagenId, new ArrayList<>(indices));
-                    }
-                } catch (Exception e) {
-                    System.err.println("⚠️  Error parseando inventario de " + url + ": " + e.getMessage());
-                }
-            }
-
-        } catch (Exception e) {
-            // Cualquier excepción = chunkserver no disponible
-            isHealthy = false;
-        }
-
-        // Actualizar estado del servidor
-        boolean wasHealthy = status.isHealthy();
-        Map<String, List<Integer>> previousInventory = status.getLastInventory();
-
-        status.recordCheck(isHealthy, currentInventory);
-        boolean isHealthyNow = status.isHealthy();
-
-        // ✅ DETECTAR Y NOTIFICAR CAMBIOS DE ESTADO
-        if (wasHealthy && !isHealthyNow) {
-            System.out.println("⚠️  CHUNKSERVER DOWN: " + url);
-            System.out.println("   └─ Fallos consecutivos: " + status.getConsecutiveFailures());
-
-            // Servidor caído: el IntegrityMonitor manejará la re-replicación
-            if (integrityMonitor != null) {
-                integrityMonitor.onChunkserverDown(url);
-            }
-
-        } else if (!wasHealthy && isHealthyNow) {
-            System.out.println("✅ CHUNKSERVER RECUPERADO: " + url);
-            System.out.println("   └─ Éxitos consecutivos: " + status.getConsecutiveSuccesses());
-
-            // Servidor recuperado: verificar si tiene los chunks esperados
-            if (integrityMonitor != null) {
-                integrityMonitor.onChunkserverRecovered(url, currentInventory);
-            }
-        }
-
-        // ✅ NUEVO: DETECTAR CAMBIOS EN EL INVENTARIO (chunks eliminados manualmente)
-        if (isHealthy && currentInventory != null && previousInventory != null) {
-            if (!inventoriesMatch(previousInventory, currentInventory)) {
-                System.out.println("🔍 CAMBIO EN INVENTARIO DETECTADO: " + url);
-
-                // Analizar qué cambió
-                Set<String> removedChunks = findRemovedChunks(previousInventory, currentInventory);
-                Set<String> addedChunks = findAddedChunks(previousInventory, currentInventory);
-
-                if (!removedChunks.isEmpty()) {
-                    System.out.println("   ❌ Chunks eliminados: " + removedChunks.size());
-                    removedChunks.stream().limit(5).forEach(chunk ->
-                            System.out.println("      - " + chunk)
-                    );
-                }
-
-                if (!addedChunks.isEmpty()) {
-                    System.out.println("   ✅ Chunks nuevos: " + addedChunks.size());
-                }
-
-                // Notificar al IntegrityMonitor para que verifique y repare
-                if (integrityMonitor != null && !removedChunks.isEmpty()) {
-                    integrityMonitor.onInventoryChanged(url, currentInventory, removedChunks);
-                }
-            }
-        }
     }
 
     /**

@@ -43,10 +43,9 @@ public class IntegrityMonitorService {
     @Lazy
     private MasterService masterService;
 
-    // ✅ FIX: También @Lazy aquí para romper ciclo con HealthMonitor
     @Autowired
     @Lazy
-    private ChunkserverHealthMonitor healthMonitor;
+    private MasterHeartbeatHandler heartbeatHandler;
 
     private final RestTemplate restTemplate;
 
@@ -203,7 +202,7 @@ public class IntegrityMonitorService {
         try {
             // Obtener inventario actual del servidor
             Map<String, List<Integer>> currentInventory =
-                    healthMonitor.getChunkserverInventory(chunkserverUrl);
+                    heartbeatHandler.getChunkserverInventory(chunkserverUrl);
 
             if (currentInventory == null || currentInventory.isEmpty()) {
                 System.out.println("   ⚠️  No se pudo obtener inventario del servidor");
@@ -325,7 +324,7 @@ public class IntegrityMonitorService {
             }
 
             // 3. Buscar una réplica DISPONIBLE (en servidor activo y diferente al target)
-            List<String> healthyServers = healthMonitor.getHealthyChunkservers();
+            List<String> healthyServers = heartbeatHandler.getHealthyChunkservers();
 
             ChunkMetadata sourceReplica = null;
             for (ChunkMetadata replica : replicas) {

@@ -260,51 +260,6 @@ public class ChunkController {
     }
 
     /**
-     * ✅ MEJORADO: Health check con INVENTARIO de chunks.
-     * <p>
-     * Este endpoint es llamado periódicamente por el Master (cada 10 segundos) para:
-     * 1. Verificar que el chunkserver está vivo
-     * 2. Obtener un inventario completo de qué chunks tiene almacenados
-     * <p>
-     * El inventario permite al Master detectar:
-     * - Chunks que fueron eliminados manualmente del disco
-     * - Corrupción de datos
-     * - Chunks huérfanos (archivos que el Master no conoce)
-     * <p>
-     * Formato del inventario: {"imagen-uuid-1": [0, 1, 2], "imagen-uuid-2": [0, 1, 3]}
-     *
-     * @return ResponseEntity con estado UP + inventario completo de chunks
-     */
-    @GetMapping("/health")
-    public ResponseEntity<Map<String, Object>> health() {
-        Map<String, Object> response = new HashMap<>();
-        response.put("status", "UP");
-        response.put("service", "Chunkserver");
-
-        try {
-            // ✅ NUEVO: Incluir inventario completo de chunks almacenados
-            // Esto permite al Master detectar si alguien eliminó chunks manualmente
-            Map<String, List<Integer>> inventory = storageService.getChunkInventory();
-            response.put("inventory", inventory);
-
-            // Incluir métricas adicionales útiles para el Master
-            int totalChunks = inventory.values().stream()
-                    .mapToInt(List::size)
-                    .sum();
-            response.put("totalChunks", totalChunks);
-            response.put("totalImages", inventory.size());
-
-        } catch (Exception e) {
-            // Si falla obtener inventario, reportarlo pero mantener status UP
-            // El chunkserver está vivo pero puede tener problemas de acceso a disco
-            response.put("inventoryError", e.getMessage());
-            System.err.println("⚠️  Error obteniendo inventario en health check: " + e.getMessage());
-        }
-
-        return ResponseEntity.ok(response);
-    }
-
-    /**
      * ✅ NUEVO: Verifica la existencia de múltiples chunks en una sola llamada.
      * <p>
      * El Master puede usar este endpoint para verificaciones específicas sin
