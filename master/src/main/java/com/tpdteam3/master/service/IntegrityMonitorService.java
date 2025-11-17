@@ -38,10 +38,12 @@ import java.util.stream.Collectors;
 @Service
 public class IntegrityMonitorService {
 
+    // ✅ FIX: Usar @Lazy para romper el ciclo de dependencias
     @Autowired
     @Lazy
     private MasterService masterService;
 
+    // ✅ FIX: También @Lazy aquí para romper ciclo con HealthMonitor
     @Autowired
     @Lazy
     private ChunkserverHealthMonitor healthMonitor;

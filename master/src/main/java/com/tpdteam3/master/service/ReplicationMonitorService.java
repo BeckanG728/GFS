@@ -37,10 +37,16 @@ public class ReplicationMonitorService {
     private static final int TARGET_REPLICATION_FACTOR = 3;
     private static final int MAX_CONCURRENT_REREPLICATIONS = 2; // Máximo 2 archivos replicándose al mismo tiempo
 
+    // ✅ NUEVO: Prevenir operaciones conflictivas
+    private static final int MIN_REPLICATION_FACTOR = 2; // No eliminar si hay menos de esto
+    private static final long COOLDOWN_AFTER_REPAIR_MS = 60000; // 60 segundos de espera después de reparar
+
     // Estado
     private final Set<String> currentlyReplicating = ConcurrentHashMap.newKeySet();
+    private final Map<String, Long> lastRepairTime = new ConcurrentHashMap<>(); // ✅ NUEVO: Track de última reparación
     private long totalReplicationsMade = 0;
     private long totalReplicationAttempts = 0;
+    private long totalCleanupOperations = 0; // ✅ NUEVO: Contador de limpiezas
 
     public ReplicationMonitorService() {
         // Configurar RestTemplate con timeouts
@@ -59,6 +65,7 @@ public class ReplicationMonitorService {
         System.out.println("⏱️  Intervalo de verificación: " + REPLICATION_CHECK_INTERVAL_SECONDS + " segundos");
         System.out.println("🎯 Factor de replicación objetivo: " + TARGET_REPLICATION_FACTOR);
         System.out.println("🔄 Re-replicaciones concurrentes máximas: " + MAX_CONCURRENT_REREPLICATIONS);
+        System.out.println("⏰ Cooldown después de reparar: " + (COOLDOWN_AFTER_REPAIR_MS / 1000) + " segundos");
         System.out.println();
 
         // Iniciar monitoreo periódico
@@ -111,7 +118,12 @@ public class ReplicationMonitorService {
                 if (status.needsReplication()) {
                     degradedFiles.add(new FileWithReplicationStatus(file, status));
                 } else if (status.hasExcessReplicas()) {
-                    overReplicatedFiles.add(new FileWithReplicationStatus(file, status));
+                    // ✅ NUEVO: Solo considerar limpieza si no se reparó recientemente
+                    Long lastRepair = lastRepairTime.get(file.getImagenId());
+                    if (lastRepair == null ||
+                        System.currentTimeMillis() - lastRepair > COOLDOWN_AFTER_REPAIR_MS) {
+                        overReplicatedFiles.add(new FileWithReplicationStatus(file, status));
+                    }
                 }
             }
 
@@ -151,15 +163,18 @@ public class ReplicationMonitorService {
                 System.out.println("   🔄 Re-replicaciones iniciadas: " + replicationsStarted);
             }
 
-            // 2. SEGUNDA PRIORIDAD: Limpiar réplicas excedentes
+            // 2. SEGUNDA PRIORIDAD: Limpiar réplicas excedentes (CON CUIDADO)
             int cleanupStarted = 0;
             for (FileWithReplicationStatus overReplicatedFile : overReplicatedFiles) {
                 if (currentlyReplicating.contains(overReplicatedFile.file.getImagenId())) {
                     continue; // Ya está siendo procesado
                 }
 
-                cleanupExcessReplicas(overReplicatedFile.file, overReplicatedFile.status, healthyServers);
-                cleanupStarted++;
+                // ✅ NUEVO: Solo limpiar si realmente hay exceso significativo
+                if (overReplicatedFile.status.currentMinReplicas > TARGET_REPLICATION_FACTOR) {
+                    cleanupExcessReplicas(overReplicatedFile.file, overReplicatedFile.status, healthyServers);
+                    cleanupStarted++;
+                }
             }
 
             if (cleanupStarted > 0) {
@@ -238,6 +253,7 @@ public class ReplicationMonitorService {
             try {
                 doReplication(file, healthyServers);
                 totalReplicationsMade++;
+                lastRepairTime.put(imagenId, System.currentTimeMillis()); // ✅ NUEVO: Registrar tiempo de reparación
                 System.out.println("✅ Re-replicación completada: " + imagenId);
             } catch (Exception e) {
                 System.err.println("❌ Error en re-replicación de " + imagenId + ": " + e.getMessage());
@@ -331,7 +347,7 @@ public class ReplicationMonitorService {
     }
 
     /**
-     * Elimina réplicas excedentes de un archivo
+     * ✅ MEJORADO: Elimina réplicas excedentes de un archivo CON CUIDADO
      */
     private void cleanupExcessReplicas(FileMetadata file, ReplicationStatus status, List<String> healthyServers) {
         String imagenId = file.getImagenId();
@@ -352,6 +368,7 @@ public class ReplicationMonitorService {
         CompletableFuture.runAsync(() -> {
             try {
                 doCleanup(file, healthyServers);
+                totalCleanupOperations++;
                 System.out.println("✅ Limpieza completada: " + imagenId);
             } catch (Exception e) {
                 System.err.println("❌ Error en limpieza de " + imagenId + ": " + e.getMessage());
@@ -362,7 +379,7 @@ public class ReplicationMonitorService {
     }
 
     /**
-     * Realiza la limpieza efectiva de réplicas excedentes
+     * ✅ MEJORADO: Realiza la limpieza efectiva de réplicas excedentes
      */
     private void doCleanup(FileMetadata file, List<String> healthyServers) throws Exception {
         Map<Integer, List<ChunkMetadata>> chunksByIndex = file.getChunks().stream()
@@ -382,13 +399,17 @@ public class ReplicationMonitorService {
                     .collect(Collectors.toList());
 
             int currentReplicas = activeReplicas.size();
+
+            // ✅ NUEVO: Solo eliminar si hay significativamente más réplicas de lo necesario
+            // Y asegurar que nunca bajemos del mínimo seguro
             int excessReplicas = currentReplicas - TARGET_REPLICATION_FACTOR;
 
-            if (excessReplicas <= 0) {
-                continue; // Este chunk no tiene exceso
+            if (excessReplicas <= 0 || currentReplicas <= MIN_REPLICATION_FACTOR) {
+                continue; // No eliminar si no hay exceso real o estamos en el mínimo
             }
 
             System.out.println("   📦 Chunk " + chunkIndex + ": Eliminando " + excessReplicas + " réplicas excedentes");
+            System.out.println("      Réplicas actuales: " + currentReplicas + " → Objetivo: " + TARGET_REPLICATION_FACTOR);
 
             // Mantener solo las primeras TARGET_REPLICATION_FACTOR réplicas
             List<ChunkMetadata> replicasToDelete = activeReplicas.stream()
@@ -474,6 +495,7 @@ public class ReplicationMonitorService {
         stats.put("replicatingFiles", new ArrayList<>(currentlyReplicating));
         stats.put("totalReplicationAttempts", totalReplicationAttempts);
         stats.put("totalReplicationsMade", totalReplicationsMade);
+        stats.put("totalCleanupOperations", totalCleanupOperations);
         stats.put("successRate", totalReplicationAttempts > 0
                 ? (totalReplicationsMade * 100.0 / totalReplicationAttempts)
                 : 100.0);
@@ -504,8 +526,9 @@ public class ReplicationMonitorService {
         }
 
         boolean hasExcessReplicas() {
-            // CORREGIDO: Verificar si hay MÁS réplicas del objetivo
-            return currentMaxReplicas > TARGET_REPLICATION_FACTOR;
+            // ✅ MEJORADO: Solo reportar exceso si hay MÁS de TARGET + 1
+            // Esto evita ciclos donde se re-replica y luego se limpia constantemente
+            return currentMaxReplicas > TARGET_REPLICATION_FACTOR + 1;
         }
     }
 
