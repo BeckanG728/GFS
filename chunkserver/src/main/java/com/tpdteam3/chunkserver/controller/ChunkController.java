@@ -6,9 +6,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.Base64;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
 
 @RestController
 @RequestMapping("/api/chunk")
@@ -17,6 +15,69 @@ public class ChunkController {
 
     @Autowired
     private ChunkStorageService storageService;
+
+    /**
+     * ✅ NUEVO: Health check CON INVENTARIO de chunks
+     * Reporta no solo que está vivo, sino QUÉ chunks tiene almacenados
+     */
+    @GetMapping("/health")
+    public ResponseEntity<Map<String, Object>> health() {
+        Map<String, Object> response = new HashMap<>();
+        response.put("status", "UP");
+        response.put("service", "Chunkserver");
+
+        // ✅ NUEVO: Incluir inventario de chunks
+        try {
+            Map<String, List<Integer>> inventory = storageService.getChunkInventory();
+            response.put("inventory", inventory);
+            response.put("totalChunks", inventory.values().stream()
+                    .mapToInt(List::size)
+                    .sum());
+        } catch (Exception e) {
+            response.put("inventoryError", e.getMessage());
+        }
+
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * ✅ NUEVO: Endpoint para verificar chunks específicos
+     * El Master puede preguntar: "¿Tienes estos chunks?"
+     */
+    @PostMapping("/verify")
+    public ResponseEntity<Map<String, Object>> verifyChunks(@RequestBody Map<String, Object> request) {
+        try {
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> chunksToVerify =
+                    (List<Map<String, Object>>) request.get("chunks");
+
+            Map<String, Object> response = new HashMap<>();
+            List<Map<String, Object>> verificationResults = new ArrayList<>();
+
+            for (Map<String, Object> chunk : chunksToVerify) {
+                String imagenId = (String) chunk.get("imagenId");
+                Integer chunkIndex = (Integer) chunk.get("chunkIndex");
+
+                Map<String, Object> result = new HashMap<>();
+                result.put("imagenId", imagenId);
+                result.put("chunkIndex", chunkIndex);
+                result.put("exists", storageService.chunkExists(imagenId, chunkIndex));
+
+                verificationResults.add(result);
+            }
+
+            response.put("status", "success");
+            response.put("results", verificationResults);
+
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            Map<String, Object> error = new HashMap<>();
+            error.put("status", "error");
+            error.put("message", e.getMessage());
+            return ResponseEntity.status(500).body(error);
+        }
+    }
+
 
     /**
      * Endpoint para escribir un fragmento
@@ -72,6 +133,7 @@ public class ChunkController {
         }
 
     }
+
 
     /**
      * Endpoint para leer un fragmento
@@ -236,16 +298,5 @@ public class ChunkController {
             error.put("message", "Error obteniendo estadísticas: " + e.getMessage());
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(error);
         }
-    }
-
-    /**
-     * Endpoint de health check
-     */
-    @GetMapping("/health")
-    public ResponseEntity<Map<String, String>> health() {
-        Map<String, String> response = new HashMap<>();
-        response.put("status", "UP");
-        response.put("service", "Chunkserver");
-        return ResponseEntity.ok(response);
     }
 }

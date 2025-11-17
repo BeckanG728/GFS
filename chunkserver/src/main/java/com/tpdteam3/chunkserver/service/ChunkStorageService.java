@@ -9,9 +9,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.Base64;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
 import java.util.stream.Stream;
 
 @Service
@@ -23,7 +21,7 @@ public class ChunkStorageService {
     @Value("${server.port:9001}")
     private int serverPort;
 
-    @Value("${chunkserver.id:chunkserver-2}")
+    @Value("${chunkserver.id:chunkserver-1}")
     private String chunkserverId;
 
     private Path resolvedStoragePath;
@@ -238,5 +236,96 @@ public class ChunkStorageService {
      */
     private String generateFilename(String imagenId, int chunkIndex) {
         return imagenId + "_chunk_" + chunkIndex + ".bin";
+    }
+
+
+    /**
+     * ✅ NUEVO: Retorna inventario completo de chunks almacenados
+     * Formato: { "imagen-uuid-1": [0, 1, 2], "imagen-uuid-2": [0, 1] }
+     */
+    public Map<String, List<Integer>> getChunkInventory() {
+        try {
+            if (!Files.exists(resolvedStoragePath)) {
+                return new HashMap<>();
+            }
+
+            Map<String, List<Integer>> inventory = new HashMap<>();
+
+            try (Stream<Path> files = Files.list(resolvedStoragePath)) {
+                files.filter(Files::isRegularFile)
+                        .forEach(path -> {
+                            String filename = path.getFileName().toString();
+
+                            // Parsear: "uuid_chunk_N.bin"
+                            if (filename.matches(".*_chunk_\\d+\\.bin")) {
+                                String[] parts = filename.split("_chunk_");
+                                String imagenId = parts[0];
+                                int chunkIndex = Integer.parseInt(
+                                        parts[1].replace(".bin", "")
+                                );
+
+                                inventory.computeIfAbsent(imagenId, k -> new ArrayList<>())
+                                        .add(chunkIndex);
+                            }
+                        });
+            }
+
+            // Ordenar índices de chunks
+            inventory.values().forEach(Collections::sort);
+
+            return inventory;
+
+        } catch (Exception e) {
+            System.err.println("❌ Error obteniendo inventario: " + e.getMessage());
+            return new HashMap<>();
+        }
+    }
+
+    /**
+     * ✅ NUEVO: Verifica la integridad de chunks esperados
+     * Compara contra una lista de chunks que el Master dice que deberían estar aquí
+     */
+    public Map<String, Object> verifyIntegrity(Map<String, List<Integer>> expectedChunks) {
+        Map<String, List<Integer>> actualInventory = getChunkInventory();
+
+        Map<String, Object> report = new HashMap<>();
+        List<String> missingChunks = new ArrayList<>();
+        List<String> extraChunks = new ArrayList<>();
+
+        // Verificar chunks esperados
+        for (Map.Entry<String, List<Integer>> entry : expectedChunks.entrySet()) {
+            String imagenId = entry.getKey();
+            List<Integer> expectedIndices = entry.getValue();
+            List<Integer> actualIndices = actualInventory.getOrDefault(imagenId, new ArrayList<>());
+
+            for (Integer index : expectedIndices) {
+                if (!actualIndices.contains(index)) {
+                    missingChunks.add(imagenId + "_chunk_" + index);
+                }
+            }
+        }
+
+        // Detectar chunks no esperados (huérfanos)
+        for (Map.Entry<String, List<Integer>> entry : actualInventory.entrySet()) {
+            String imagenId = entry.getKey();
+            List<Integer> actualIndices = entry.getValue();
+            List<Integer> expectedIndices = expectedChunks.getOrDefault(imagenId, new ArrayList<>());
+
+            for (Integer index : actualIndices) {
+                if (!expectedIndices.contains(index)) {
+                    extraChunks.add(imagenId + "_chunk_" + index);
+                }
+            }
+        }
+
+        report.put("healthy", missingChunks.isEmpty());
+        report.put("missingChunks", missingChunks);
+        report.put("extraChunks", extraChunks);
+        report.put("totalExpected", expectedChunks.values().stream()
+                .mapToInt(List::size).sum());
+        report.put("totalActual", actualInventory.values().stream()
+                .mapToInt(List::size).sum());
+
+        return report;
     }
 }
