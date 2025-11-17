@@ -8,7 +8,7 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
-public class DFSClientService {
+public class DFSService {
 
     private static final int CHUNK_SIZE = 32 * 1024; // 32KB
 
@@ -16,8 +16,8 @@ public class DFSClientService {
     private final ChunkServerCommunicationService chunkServerService;
 
     @Autowired
-    public DFSClientService(MasterCommunicationService masterService, 
-                           ChunkServerCommunicationService chunkServerService) {
+    public DFSService(MasterCommunicationService masterService,
+                      ChunkServerCommunicationService chunkServerService) {
         this.masterService = masterService;
         this.chunkServerService = chunkServerService;
     }
@@ -111,11 +111,11 @@ public class DFSClientService {
         System.out.println();
 
         List<byte[]> chunkDataList = new ArrayList<>();
-        
+
         for (int i = 0; i < chunksByIndex.size(); i++) {
             List<Map<String, Object>> replicas = chunksByIndex.get(i);
             byte[] chunkData = null;
-            
+
             for (Map<String, Object> replica : replicas) {
                 String chunkserverUrl = (String) replica.get("chunkserverUrl");
                 try {
@@ -127,26 +127,26 @@ public class DFSClientService {
                     System.err.println("   ⚠️ Error leyendo fragmento " + i + " desde " + chunkserverUrl + ": " + e.getMessage());
                 }
             }
-            
+
             if (chunkData == null) {
                 throw new RuntimeException("No se pudo leer el fragmento " + i + " desde ninguna réplica");
             }
-            
+
             chunkDataList.add(chunkData);
         }
-        
+
         int totalSize = chunkDataList.stream().mapToInt(chunk -> chunk.length).sum();
         byte[] imageBytes = new byte[totalSize];
         int offset = 0;
-        
+
         for (byte[] chunk : chunkDataList) {
             System.arraycopy(chunk, 0, imageBytes, offset, chunk.length);
             offset += chunk.length;
         }
-        
+
         System.out.println("   ✅ Imagen reconstruida: " + imageBytes.length + " bytes");
         System.out.println();
-        
+
         return imageBytes;
     }
 

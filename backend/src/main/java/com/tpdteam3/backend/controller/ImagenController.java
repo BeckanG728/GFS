@@ -1,7 +1,7 @@
 package com.tpdteam3.backend.controller;
 
 import com.tpdteam3.backend.entity.Producto;
-import com.tpdteam3.backend.service.DFSClientService;
+import com.tpdteam3.backend.service.DFSService;
 import com.tpdteam3.backend.service.ProductoService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
@@ -20,7 +20,7 @@ import java.util.Map;
 public class ImagenController {
 
     @Autowired
-    private DFSClientService dfsClientService;
+    private DFSService dfsService;
 
     @Autowired
     private ProductoService productoService;
@@ -60,7 +60,7 @@ public class ImagenController {
             // 3. Si ya tiene imagen, eliminar la anterior
             if (producto.getImagenId() != null) {
                 try {
-                    dfsClientService.deleteImagen(producto.getImagenId());
+                    dfsService.deleteImagen(producto.getImagenId());
                     System.out.println("✅ Imagen anterior eliminada: " + producto.getImagenId());
                 } catch (Exception e) {
                     System.err.println("⚠️ Error eliminando imagen anterior: " + e.getMessage());
@@ -69,7 +69,7 @@ public class ImagenController {
 
             // 4. Subir nueva imagen al sistema distribuido
             System.out.println("📤 Intentando subir imagen al DFS...");
-            String imagenId = dfsClientService.uploadImagen(file);
+            String imagenId = dfsService.uploadImagen(file);
             System.out.println("✅ Imagen subida al DFS con ID: " + imagenId);
 
             // 5. Actualizar producto con referencia a la imagen
@@ -121,7 +121,7 @@ public class ImagenController {
             }
 
             // Descargar imagen del sistema distribuido
-            byte[] imageData = dfsClientService.downloadImagen(producto.getImagenId());
+            byte[] imageData = dfsService.downloadImagen(producto.getImagenId());
 
             // Determinar tipo de contenido basado en extensión
             String contentType = MediaType.IMAGE_JPEG_VALUE;
@@ -166,7 +166,7 @@ public class ImagenController {
             }
 
             // Eliminar del sistema distribuido
-            dfsClientService.deleteImagen(producto.getImagenId());
+            dfsService.deleteImagen(producto.getImagenId());
 
             // Actualizar producto
             producto.setImagenId(null);
