@@ -1,0 +1,203 @@
+{
+  "bcd93791-7833-4f9d-9d31-83c9853da883" : {
+    "imagenId" : "bcd93791-7833-4f9d-9d31-83c9853da883",
+    "size" : 46683,
+    "chunks" : [ {
+      "chunkIndex" : 0,
+      "chunkserverId" : "http://localhost:9004/chunkserver4",
+      "chunkserverUrl" : "http://localhost:9004/chunkserver4",
+      "replicaIndex" : 0
+    }, {
+      "chunkIndex" : 0,
+      "chunkserverId" : "http://localhost:9005/chunkserver5",
+      "chunkserverUrl" : "http://localhost:9005/chunkserver5",
+      "replicaIndex" : 1
+    }, {
+      "chunkIndex" : 0,
+      "chunkserverId" : "http://localhost:9001/chunkserver1",
+      "chunkserverUrl" : "http://localhost:9001/chunkserver1",
+      "replicaIndex" : 2
+    }, {
+      "chunkIndex" : 1,
+      "chunkserverId" : "http://localhost:9002/chunkserver2",
+      "chunkserverUrl" : "http://localhost:9002/chunkserver2",
+      "replicaIndex" : 0
+    }, {
+      "chunkIndex" : 1,
+      "chunkserverId" : "http://localhost:9003/chunkserver3",
+      "chunkserverUrl" : "http://localhost:9003/chunkserver3",
+      "replicaIndex" : 1
+    }, {
+      "chunkIndex" : 1,
+      "chunkserverId" : "http://localhost:9004/chunkserver4",
+      "chunkserverUrl" : "http://localhost:9004/chunkserver4",
+      "replicaIndex" : 2
+    } ],
+    "timestamp" : 1763355395004
+  },
+  "b8016e5d-1615-47e8-b1c1-2f15168332a8" : {
+    "imagenId" : "b8016e5d-1615-47e8-b1c1-2f15168332a8",
+    "size" : 43462,
+    "chunks" : [ {
+      "chunkIndex" : 0,
+      "chunkserverId" : "http://localhost:9005/chunkserver5",
+      "chunkserverUrl" : "http://localhost:9005/chunkserver5",
+      "replicaIndex" : 0
+    }, {
+      "chunkIndex" : 0,
+      "chunkserverId" : "http://localhost:9001/chunkserver1",
+      "chunkserverUrl" : "http://localhost:9001/chunkserver1",
+      "replicaIndex" : 1
+    }, {
+      "chunkIndex" : 0,
+      "chunkserverId" : "http://localhost:9002/chunkserver2",
+      "chunkserverUrl" : "http://localhost:9002/chunkserver2",
+      "replicaIndex" : 2
+    }, {
+      "chunkIndex" : 1,
+      "chunkserverId" : "http://localhost:9003/chunkserver3",
+      "chunkserverUrl" : "http://localhost:9003/chunkserver3",
+      "replicaIndex" : 0
+    }, {
+      "chunkIndex" : 1,
+      "chunkserverId" : "http://localhost:9004/chunkserver4",
+      "chunkserverUrl" : "http://localhost:9004/chunkserver4",
+      "replicaIndex" : 1
+    }, {
+      "chunkIndex" : 1,
+      "chunkserverId" : "http://localhost:9005/chunkserver5",
+      "chunkserverUrl" : "http://localhost:9005/chunkserver5",
+      "replicaIndex" : 2
+    } ],
+    "timestamp" : 1763355381838
+  },
+  "e63e4a56-6985-4573-bfc6-104df335ec60" : {
+    "imagenId" : "e63e4a56-6985-4573-bfc6-104df335ec60",
+    "size" : 69687,
+    "chunks" : [ {
+      "chunkIndex" : 0,
+      "chunkserverId" : "http://localhost:9005/chunkserver5",
+      "chunkserverUrl" : "http://localhost:9005/chunkserver5",
+      "replicaIndex" : 0
+    }, {
+      "chunkIndex" : 0,
+      "chunkserverId" : "http://localhost:9001/chunkserver1",
+      "chunkserverUrl" : "http://localhost:9001/chunkserver1",
+      "replicaIndex" : 1
+    }, {
+      "chunkIndex" : 0,
+      "chunkserverId" : "http://localhost:9002/chunkserver2",
+      "chunkserverUrl" : "http://localhost:9002/chunkserver2",
+      "replicaIndex" : 2
+    }, {
+      "chunkIndex" : 1,
+      "chunkserverId" : "http://localhost:9003/chunkserver3",
+      "chunkserverUrl" : "http://localhost:9003/chunkserver3",
+      "replicaIndex" : 0
+    }, {
+      "chunkIndex" : 1,
+      "chunkserverId" : "http://localhost:9004/chunkserver4",
+      "chunkserverUrl" : "http://localhost:9004/chunkserver4",
+      "replicaIndex" : 1
+    }, {
+      "chunkIndex" : 1,
+      "chunkserverId" : "http://localhost:9005/chunkserver5",
+      "chunkserverUrl" : "http://localhost:9005/chunkserver5",
+      "replicaIndex" : 2
+    }, {
+      "chunkIndex" : 2,
+      "chunkserverId" : "http://localhost:9001/chunkserver1",
+      "chunkserverUrl" : "http://localhost:9001/chunkserver1",
+      "replicaIndex" : 0
+    }, {
+      "chunkIndex" : 2,
+      "chunkserverId" : "http://localhost:9002/chunkserver2",
+      "chunkserverUrl" : "http://localhost:9002/chunkserver2",
+      "replicaIndex" : 1
+    }, {
+      "chunkIndex" : 2,
+      "chunkserverId" : "http://localhost:9003/chunkserver3",
+      "chunkserverUrl" : "http://localhost:9003/chunkserver3",
+      "replicaIndex" : 2
+    } ],
+    "timestamp" : 1763355400993
+  },
+  "39bcb461-be92-44fb-aff3-0ced6152d1be" : {
+    "imagenId" : "39bcb461-be92-44fb-aff3-0ced6152d1be",
+    "size" : 7277,
+    "chunks" : [ {
+      "chunkIndex" : 0,
+      "chunkserverId" : "http://localhost:9001/chunkserver1",
+      "chunkserverUrl" : "http://localhost:9001/chunkserver1",
+      "replicaIndex" : 0
+    }, {
+      "chunkIndex" : 0,
+      "chunkserverId" : "http://localhost:9002/chunkserver2",
+      "chunkserverUrl" : "http://localhost:9002/chunkserver2",
+      "replicaIndex" : 1
+    }, {
+      "chunkIndex" : 0,
+      "chunkserverId" : "http://localhost:9003/chunkserver3",
+      "chunkserverUrl" : "http://localhost:9003/chunkserver3",
+      "replicaIndex" : 2
+    } ],
+    "timestamp" : 1763355388286
+  },
+  "4938e303-0387-4402-af16-b220a521a7d2" : {
+    "imagenId" : "4938e303-0387-4402-af16-b220a521a7d2",
+    "size" : 55165,
+    "chunks" : [ {
+      "chunkIndex" : 0,
+      "chunkserverId" : "http://localhost:9001/chunkserver1",
+      "chunkserverUrl" : "http://localhost:9001/chunkserver1",
+      "replicaIndex" : 0
+    }, {
+      "chunkIndex" : 0,
+      "chunkserverId" : "http://localhost:9002/chunkserver2",
+      "chunkserverUrl" : "http://localhost:9002/chunkserver2",
+      "replicaIndex" : 1
+    }, {
+      "chunkIndex" : 0,
+      "chunkserverId" : "http://localhost:9003/chunkserver3",
+      "chunkserverUrl" : "http://localhost:9003/chunkserver3",
+      "replicaIndex" : 2
+    }, {
+      "chunkIndex" : 1,
+      "chunkserverId" : "http://localhost:9004/chunkserver4",
+      "chunkserverUrl" : "http://localhost:9004/chunkserver4",
+      "replicaIndex" : 0
+    }, {
+      "chunkIndex" : 1,
+      "chunkserverId" : "http://localhost:9005/chunkserver5",
+      "chunkserverUrl" : "http://localhost:9005/chunkserver5",
+      "replicaIndex" : 1
+    }, {
+      "chunkIndex" : 1,
+      "chunkserverId" : "http://localhost:9001/chunkserver1",
+      "chunkserverUrl" : "http://localhost:9001/chunkserver1",
+      "replicaIndex" : 2
+    } ],
+    "timestamp" : 1763355369087
+  },
+  "e047fd6f-f47a-47f2-a996-646cb0608def" : {
+    "imagenId" : "e047fd6f-f47a-47f2-a996-646cb0608def",
+    "size" : 3998,
+    "chunks" : [ {
+      "chunkIndex" : 0,
+      "chunkserverId" : "http://localhost:9002/chunkserver2",
+      "chunkserverUrl" : "http://localhost:9002/chunkserver2",
+      "replicaIndex" : 0
+    }, {
+      "chunkIndex" : 0,
+      "chunkserverId" : "http://localhost:9003/chunkserver3",
+      "chunkserverUrl" : "http://localhost:9003/chunkserver3",
+      "replicaIndex" : 1
+    }, {
+      "chunkIndex" : 0,
+      "chunkserverId" : "http://localhost:9004/chunkserver4",
+      "chunkserverUrl" : "http://localhost:9004/chunkserver4",
+      "replicaIndex" : 2
+    } ],
+    "timestamp" : 1763355376364
+  }
+}
