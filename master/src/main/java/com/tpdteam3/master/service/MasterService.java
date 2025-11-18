@@ -18,43 +18,35 @@ public class MasterService {
     private MetadataPersistenceService persistenceService;
 
     @Autowired
-    private ChunkserverRegistry chunkserverRegistry;
-
-    @Autowired
     private MasterHeartbeatHandler heartbeatHandler;
 
-
-    // Inyectar IntegrityMonitor con @Lazy para evitar ciclos
     @Autowired
     @Lazy
     private IntegrityMonitorService integrityMonitor;
 
-    // Almacena metadatos de archivos en memoria (cargados desde disco)
+    // Almacena metadatos de archivos en memoria
     private Map<String, FileMetadata> fileMetadataStore;
 
-    // ✅ CAMBIO: Ahora los chunkservers se registran dinámicamente
+    // ✅ SIMPLIFICADO: Estado de chunkservers directamente aquí
     private final Map<String, ChunkserverInfo> registeredChunkservers = new ConcurrentHashMap<>();
 
-    // ✅ CONFIGURACIÓN DE REPLICACIÓN
+    // Configuración
     private static final int REPLICATION_FACTOR = 3;
     private static final int CHUNK_SIZE = 32 * 1024; // 32KB
-
-    // 🔒 POLÍTICA DE REPLICACIÓN
     private static final boolean ALLOW_DEGRADED_REPLICATION = true;
     private static final int MIN_REPLICAS_REQUIRED = 1;
 
     @PostConstruct
     public void init() {
         System.out.println("╔════════════════════════════════════════════════════════╗");
-        System.out.println("║         🚀 MASTER SERVICE CON REGISTRO DINÁMICO       ║");
+        System.out.println("║         🚀 MASTER SERVICE - INICIALIZADO              ║");
         System.out.println("╚════════════════════════════════════════════════════════╝");
 
-        // 1. CARGAR METADATOS DESDE DISCO
+        // Cargar metadatos desde disco
         fileMetadataStore = persistenceService.loadMetadata();
 
         System.out.println("📊 Configuración:");
         System.out.println("   ├─ Metadatos recuperados: " + fileMetadataStore.size() + " archivos");
-        System.out.println("   ├─ Modo de registro: DINÁMICO (los chunkservers se auto-registran)");
         System.out.println("   ├─ Factor de replicación: " + REPLICATION_FACTOR + "x");
         System.out.println("   └─ Tamaño de fragmento: " + (CHUNK_SIZE / 1024) + " KB");
         System.out.println();
@@ -62,23 +54,23 @@ public class MasterService {
         System.out.println();
     }
 
+
+    // ═══════════════════════════════════════════════════════════════
+    // GESTIÓN DE CHUNKSERVERS (consolidado desde Registry)
+    // ═══════════════════════════════════════════════════════════════
+
     /**
-     * Registra un chunkserver con ID opcional
-     * Y verifica su integridad al registrarse
+     * Registra un chunkserver con ID opcional y verifica su integridad
      */
     public synchronized void registerChunkserver(String url, String id) {
         boolean isNewRegistration = !registeredChunkservers.containsKey(url);
 
-        if (!isNewRegistration) {
-            System.out.println("⚠️  Chunkserver ya registrado: " + url);
-            // Aunque ya esté registrado, verificar integridad por si acaso
-        }
+        String chunkserverId = (id != null && !id.isEmpty())
+                ? id
+                : generateChunkserverId(url);
 
-        String chunkserverId = (id != null && !id.isEmpty()) ? id : generateChunkserverId(url);
         ChunkserverInfo info = new ChunkserverInfo(url, chunkserverId);
-
         registeredChunkservers.put(url, info);
-        chunkserverRegistry.registerChunkserver(url);
 
         System.out.println("╔════════════════════════════════════════════════════════╗");
         System.out.println("║  ✅ CHUNKSERVER " + (isNewRegistration ? "REGISTRADO" : "RE-REGISTRADO") + "                      ║");
@@ -87,19 +79,18 @@ public class MasterService {
         System.out.println("   ID: " + chunkserverId);
         System.out.println("   Total registrados: " + registeredChunkservers.size());
 
-        // ✅ NUEVO: Verificar integridad al registrar/re-registrar
+        // ✅ Verificar integridad al registrar/re-registrar
         // Esto detecta chunks eliminados mientras el Master estaba caído
         if (!isNewRegistration || fileMetadataStore.size() > 0) {
             System.out.println("   🔍 Verificando integridad de chunks...");
 
-            // Esperar un momento para que el chunkserver esté completamente listo
+            // Pequeña pausa para que el chunkserver esté listo
             try {
-                Thread.sleep(1000); // 1 segundo
+                Thread.sleep(1000);
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
             }
 
-            // Disparar verificación de integridad
             if (integrityMonitor != null) {
                 integrityMonitor.onChunkserverRegistered(url);
             }
@@ -109,12 +100,12 @@ public class MasterService {
     }
 
     /**
-     * ✅ NUEVO: Desregistra un chunkserver
+     * Desregistra un chunkserver del sistema
      */
     public synchronized void unregisterChunkserver(String url) {
         ChunkserverInfo removed = registeredChunkservers.remove(url);
+
         if (removed != null) {
-            chunkserverRegistry.unregisterChunkserver(url);
             System.out.println("╔════════════════════════════════════════════════════════╗");
             System.out.println("║  ⚠️  CHUNKSERVER DESREGISTRADO                        ║");
             System.out.println("╚════════════════════════════════════════════════════════╝");
@@ -123,6 +114,27 @@ public class MasterService {
             System.out.println("   Total registrados: " + registeredChunkservers.size());
             System.out.println();
         }
+    }
+
+    /**
+     * Obtiene la lista de todos los chunkservers registrados
+     */
+    public List<String> getAllChunkservers() {
+        return new ArrayList<>(registeredChunkservers.keySet());
+    }
+
+    /**
+     * Verifica si un chunkserver está registrado
+     */
+    public boolean isChunkserverRegistered(String url) {
+        return registeredChunkservers.containsKey(url);
+    }
+
+    /**
+     * Obtiene información de un chunkserver específico
+     */
+    public ChunkserverInfo getChunkserverInfo(String url) {
+        return registeredChunkservers.get(url);
     }
 
     /**
@@ -140,18 +152,15 @@ public class MasterService {
         return "chunkserver-" + portPart + "-" + System.currentTimeMillis();
     }
 
-    /**
-     * Obtiene la lista de todos los chunkservers registrados
-     */
-    public List<String> getAllChunkservers() {
-        return new ArrayList<>(registeredChunkservers.keySet());
-    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // GESTIÓN DE ARCHIVOS (sin cambios)
+    // ═══════════════════════════════════════════════════════════════
 
     /**
      * Planifica upload - SOLO USA CHUNKSERVERS ACTIVOS
      */
     public FileMetadata planUpload(String imagenId, long fileSize) {
-        // Verificar que hay chunkservers registrados
         if (registeredChunkservers.isEmpty()) {
             throw new RuntimeException(
                     "No hay chunkservers registrados en el sistema. " +
@@ -159,7 +168,6 @@ public class MasterService {
             );
         }
 
-        // ✅ OBTENER SOLO CHUNKSERVERS ACTIVOS
         List<String> healthyChunkservers = heartbeatHandler.getHealthyChunkservers();
 
         if (healthyChunkservers.isEmpty()) {
@@ -170,15 +178,13 @@ public class MasterService {
             );
         }
 
-        // 🔒 APLICAR POLÍTICA DE REPLICACIÓN
         int availableReplicas = Math.min(REPLICATION_FACTOR, healthyChunkservers.size());
 
         if (!ALLOW_DEGRADED_REPLICATION && availableReplicas < REPLICATION_FACTOR) {
             throw new RuntimeException(
                     "Insuficientes chunkservers para mantener factor de replicación. " +
                     "Disponibles: " + healthyChunkservers.size() + ", " +
-                    "Requeridos: " + REPLICATION_FACTOR + ". " +
-                    "Operación rechazada por política de seguridad."
+                    "Requeridos: " + REPLICATION_FACTOR
             );
         }
 
@@ -190,13 +196,6 @@ public class MasterService {
             );
         }
 
-        if (availableReplicas < REPLICATION_FACTOR) {
-            System.out.println("⚠️  ADVERTENCIA: Modo de replicación degradado");
-            System.out.println("   ├─ Servidores disponibles: " + availableReplicas);
-            System.out.println("   ├─ Factor de replicación normal: " + REPLICATION_FACTOR);
-            System.out.println("   └─ Se crearán " + availableReplicas + " réplicas (riesgo de pérdida de datos)");
-        }
-
         FileMetadata metadata = new FileMetadata(imagenId, fileSize);
         int numChunks = (int) Math.ceil((double) fileSize / CHUNK_SIZE);
 
@@ -204,60 +203,44 @@ public class MasterService {
         System.out.println("║  📋 PLANIFICANDO UPLOAD                               ║");
         System.out.println("╚════════════════════════════════════════════════════════╝");
         System.out.println("   ImagenId: " + imagenId);
-        System.out.println("   Tamaño: " + fileSize + " bytes (" + (fileSize / 1024) + " KB)");
+        System.out.println("   Tamaño: " + fileSize + " bytes");
         System.out.println("   Fragmentos: " + numChunks);
-        System.out.println("   Chunkservers registrados: " + registeredChunkservers.size());
-        System.out.println("   Chunkservers activos: " + healthyChunkservers.size());
-        System.out.println("   Réplicas por fragmento: " + availableReplicas +
-                           (availableReplicas < REPLICATION_FACTOR ? " ⚠️ DEGRADADO" : " ✅"));
+        System.out.println("   Réplicas por fragmento: " + availableReplicas);
         System.out.println();
 
-        // Asignar fragmentos SOLO a servidores activos
+        // Asignar fragmentos
         for (int i = 0; i < numChunks; i++) {
             List<String> replicaLocations = selectHealthyChunkserversForReplicas(
                     availableReplicas,
                     healthyChunkservers
             );
 
-            System.out.println("   Fragmento " + i + ":");
             for (int r = 0; r < replicaLocations.size(); r++) {
                 String chunkserver = replicaLocations.get(r);
                 ChunkMetadata chunk = new ChunkMetadata(i, chunkserver, chunkserver);
                 chunk.setReplicaIndex(r);
                 metadata.getChunks().add(chunk);
-
-                String replicaType = r == 0 ? "PRIMARIA" : "RÉPLICA " + r;
-                System.out.println("      └─ [" + replicaType + "] → " + chunkserver);
             }
         }
 
-        // Guardar metadatos
         fileMetadataStore.put(imagenId, metadata);
         persistenceService.saveFileMetadata(fileMetadataStore);
-
-        System.out.println();
-        System.out.println("✅ Plan de replicación creado");
-        System.out.println("   Total de escrituras: " + metadata.getChunks().size());
-        System.out.println();
 
         return metadata;
     }
 
     /**
-     * Selecciona N chunkservers ACTIVOS diferentes para réplicas usando round-robin sin estado
+     * Selecciona chunkservers para réplicas usando distribución aleatoria
      */
-    private List<String> selectHealthyChunkserversForReplicas(int numReplicas, List<String> healthyChunkservers) {
-        List<String> selected = new ArrayList<>();
+    private List<String> selectHealthyChunkserversForReplicas(
+            int numReplicas,
+            List<String> healthyChunkservers) {
+
         List<String> available = new ArrayList<>(healthyChunkservers);
-        Collections.shuffle(available); // Distribución aleatoria para evitar hotspots
+        Collections.shuffle(available);
 
         int actualReplicas = Math.min(numReplicas, available.size());
-
-        for (int i = 0; i < actualReplicas; i++) {
-            selected.add(available.get(i));
-        }
-
-        return selected;
+        return available.subList(0, actualReplicas);
     }
 
     /**
@@ -269,8 +252,10 @@ public class MasterService {
             throw new RuntimeException("Archivo no encontrado: " + imagenId);
         }
 
-        // ✅ CREAR COPIA CON SOLO RÉPLICAS EN SERVIDORES ACTIVOS
-        FileMetadata filteredMetadata = new FileMetadata(metadata.getImagenId(), metadata.getSize());
+        FileMetadata filteredMetadata = new FileMetadata(
+                metadata.getImagenId(),
+                metadata.getSize()
+        );
         filteredMetadata.setTimestamp(metadata.getTimestamp());
 
         List<String> healthyServers = heartbeatHandler.getHealthyChunkservers();
@@ -279,18 +264,6 @@ public class MasterService {
             if (healthyServers.contains(chunk.getChunkserverUrl())) {
                 filteredMetadata.getChunks().add(chunk);
             }
-        }
-
-        int totalReplicas = metadata.getChunks().size();
-        int availableReplicas = filteredMetadata.getChunks().size();
-
-        System.out.println("📥 Metadatos para: " + imagenId);
-        System.out.println("   Total réplicas: " + totalReplicas);
-        System.out.println("   Réplicas disponibles: " + availableReplicas);
-
-        if (availableReplicas < totalReplicas) {
-            System.out.println("   ⚠️  " + (totalReplicas - availableReplicas) +
-                               " réplicas en servidores caídos (filtradas)");
         }
 
         // Verificar que hay al menos una réplica por fragmento
@@ -304,7 +277,8 @@ public class MasterService {
         for (int i = 0; i < numChunks; i++) {
             if (!replicasPerChunk.containsKey(i) || replicasPerChunk.get(i) == 0) {
                 throw new RuntimeException(
-                        "Fragmento " + i + " no disponible - todas sus réplicas están en servidores caídos"
+                        "Fragmento " + i + " no disponible - " +
+                        "todas sus réplicas están en servidores caídos"
                 );
             }
         }
@@ -313,7 +287,7 @@ public class MasterService {
     }
 
     /**
-     * Elimina archivo Y réplicas
+     * Elimina archivo Y metadatos
      */
     public void deleteFile(String imagenId) {
         FileMetadata metadata = fileMetadataStore.remove(imagenId);
@@ -329,7 +303,6 @@ public class MasterService {
     public void updateFileMetadata(FileMetadata metadata) {
         fileMetadataStore.put(metadata.getImagenId(), metadata);
         persistenceService.saveFileMetadata(fileMetadataStore);
-        System.out.println("💾 Metadatos actualizados: " + metadata.getImagenId());
     }
 
     /**
@@ -338,6 +311,11 @@ public class MasterService {
     public Collection<FileMetadata> listFiles() {
         return fileMetadataStore.values();
     }
+
+
+    // ═══════════════════════════════════════════════════════════════
+    // ESTADO Y ESTADÍSTICAS
+    // ═══════════════════════════════════════════════════════════════
 
     /**
      * Estado de salud del sistema
@@ -398,7 +376,8 @@ public class MasterService {
         stats.put("totalStorageUsedKB", totalSize / 1024);
         stats.put("totalUniqueChunks", totalChunks);
         stats.put("totalReplicas", totalReplicas);
-        stats.put("replicationEfficiency", totalChunks > 0 ? (double) totalReplicas / totalChunks : 0);
+        stats.put("replicationEfficiency",
+                totalChunks > 0 ? (double) totalReplicas / totalChunks : 0);
         stats.put("healthStatus", getHealthStatus());
         stats.put("persistenceStats", persistenceService.getStorageStats());
 
