@@ -1,6 +1,6 @@
 package com.tpdteam3.chunkserver.controller;
 
-import com.tpdteam3.chunkserver.service.ChunkStorageService;
+import com.tpdteam3.chunkserver.service.StorageService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -21,7 +21,7 @@ import java.util.Map;
 public class ChunkController {
 
     @Autowired
-    private ChunkStorageService storageService;
+    private StorageService storageService;
 
     /**
      * Escribe un fragmento de archivo en disco.

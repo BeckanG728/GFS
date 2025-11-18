@@ -133,7 +133,7 @@ public class DFSService {
                         : 0;
 
                 try {
-                    chunkData = chunkServerClient.readChunk(imagenId, i, chunkserverUrl);
+                    chunkData = chunkServerClient.readChunk(imagenId, i, chunkserverUrl); // Data bytes []
 
                     String replicaType = replicaIndex == 0 ? "PRIMARIA" : "RÉPLICA " + replicaIndex;
                     System.out.println("      ✅ [" + replicaType + "] → " + chunkserverUrl);

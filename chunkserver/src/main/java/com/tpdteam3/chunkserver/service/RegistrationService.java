@@ -20,7 +20,7 @@ import java.util.concurrent.TimeUnit;
  * Servicio que gestiona el registro automático del chunkserver con el Master
  */
 @Service
-public class ChunkserverRegistrationService {
+public class RegistrationService {
 
     @Value("${server.port}")
     private int serverPort;
@@ -52,7 +52,7 @@ public class ChunkserverRegistrationService {
     private int consecutiveFailures = 0;
     private static final int MAX_FAILURES_BEFORE_REREGISTER = 3;
 
-    public ChunkserverRegistrationService() {
+    public RegistrationService() {
         this.restTemplate = new RestTemplate();
     }
 
@@ -185,7 +185,7 @@ public class ChunkserverRegistrationService {
                             (java.util.List<String>) body.get("allServers");
 
                     if (allServers == null || !allServers.contains(chunkserverUrl)) {
-                        // ❌ El Master no nos conoce - probablemente se reinició
+                        // El Master no nos conoce - probablemente se reinició
                         System.out.println("⚠️  DETECTADO: Master no nos tiene registrado");
                         System.out.println("   (El Master probablemente se reinició)");
                         System.out.println("   🔄 Iniciando re-registro...");

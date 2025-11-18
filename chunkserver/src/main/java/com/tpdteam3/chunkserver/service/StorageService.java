@@ -17,7 +17,7 @@ import java.util.stream.Stream;
  * Implementa operaciones CRUD sobre fragmentos de archivos y mantiene inventario.
  */
 @Service
-public class ChunkStorageService {
+public class StorageService {
 
     @Value("${chunkserver.storage.path:./storage}")
     private String storagePath;

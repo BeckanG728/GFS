@@ -237,7 +237,7 @@ public class MasterHeartbeatHandler {
                                                                      ChunkserverHeartbeatInfo info) {
         List<Map<String, Object>> commands = new ArrayList<>();
 
-        // Ejemplo: Pedir verificación de integridad si han pasado muchos chunks
+        // Pedir verificación de integridad si han pasado muchos chunks
         if (info.getTotalHeartbeats() % 100 == 0) {
             Map<String, Object> command = new HashMap<>();
             command.put("action", "verify_chunks");

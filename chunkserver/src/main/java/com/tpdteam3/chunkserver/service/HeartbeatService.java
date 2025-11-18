@@ -19,21 +19,14 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
 /**
- * ✅ DISEÑO CORRECTO: Heartbeats ACTIVOS desde Chunkserver → Master
- * <p>
+ * Heartbeats ACTIVOS desde Chunkserver → Master
  * El Chunkserver envía heartbeats periódicos al Master para:
  * 1. Informar que está vivo y disponible
  * 2. Enviar inventario actualizado de chunks
  * 3. Reportar métricas de salud (espacio disponible, carga, etc)
- * <p>
- * Ventajas sobre el polling del Master:
- * - Escalabilidad: El Master no tiene que consultar a cada chunkserver
- * - Detección de fallos más rápida: El Master detecta inmediatamente cuando no llega un heartbeat
- * - Menor carga en el Master: Solo recibe datos, no hace requests
- * - Mejor para network overhead: Conexiones unidireccionales
  */
 @Service
-public class ChunkserverHeartbeatService {
+public class HeartbeatService {
 
     @Value("${server.port}")
     private int serverPort;
@@ -54,7 +47,7 @@ public class ChunkserverHeartbeatService {
     private int heartbeatIntervalSeconds;
 
     @Autowired
-    private ChunkStorageService storageService;
+    private StorageService storageService;
 
     private final RestTemplate restTemplate;
     private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
@@ -62,7 +55,7 @@ public class ChunkserverHeartbeatService {
     private int consecutiveFailures = 0;
     private static final int MAX_FAILURES_BEFORE_ALERT = 3;
 
-    public ChunkserverHeartbeatService() {
+    public HeartbeatService() {
         this.restTemplate = new RestTemplate();
     }
 
@@ -116,7 +109,7 @@ public class ChunkserverHeartbeatService {
     }
 
     /**
-     * ✅ HEARTBEAT ACTIVO: El Chunkserver envía su estado al Master
+     * HEARTBEAT ACTIVO: El Chunkserver envía su estado al Master
      */
     private void sendHeartbeat() {
         try {
@@ -153,12 +146,6 @@ public class ChunkserverHeartbeatService {
                     System.out.println("✅ Conexión con Master restaurada");
                 }
                 consecutiveFailures = 0;
-
-                // El Master puede enviar comandos en la respuesta (opcional)
-                Map<String, Object> responseBody = response.getBody();
-                if (responseBody != null) {
-                    handleMasterCommands(responseBody);
-                }
             }
 
         } catch (Exception e) {
@@ -176,35 +163,6 @@ public class ChunkserverHeartbeatService {
         }
     }
 
-    /**
-     * Procesa comandos que el Master puede enviar en la respuesta del heartbeat
-     * Por ejemplo: "delete_chunk", "verify_integrity", etc.
-     */
-    private void handleMasterCommands(Map<String, Object> responseBody) {
-        Object commandsObj = responseBody.get("commands");
-        if (commandsObj instanceof List) {
-            @SuppressWarnings("unchecked")
-            List<Map<String, Object>> commands = (List<Map<String, Object>>) commandsObj;
-
-            for (Map<String, Object> command : commands) {
-                String action = (String) command.get("action");
-                System.out.println("📨 Comando del Master: " + action);
-
-                // Implementar handlers para diferentes comandos
-                switch (action) {
-                    case "verify_chunks":
-                        // Verificar integridad de chunks específicos
-                        break;
-                    case "delete_chunk":
-                        // Eliminar chunk específico
-                        break;
-                    case "report_detailed_stats":
-                        // Enviar estadísticas más detalladas
-                        break;
-                }
-            }
-        }
-    }
 
     /**
      * Notifica al Master que este chunkserver se está apagando de forma ordenada
@@ -227,7 +185,6 @@ public class ChunkserverHeartbeatService {
             restTemplate.postForEntity(shutdownUrl, entity, Map.class);
             System.out.println("✅ Notificación de shutdown enviada al Master");
         } catch (Exception e) {
-            // Silencioso - el Master detectará la ausencia de heartbeats
         }
     }
 }

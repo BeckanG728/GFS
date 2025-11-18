@@ -34,7 +34,6 @@ public class MasterService {
 
     // ✅ CAMBIO: Ahora los chunkservers se registran dinámicamente
     private final Map<String, ChunkserverInfo> registeredChunkservers = new ConcurrentHashMap<>();
-    private int nextChunkserverIndex = 0;
 
     // ✅ CONFIGURACIÓN DE REPLICACIÓN
     private static final int REPLICATION_FACTOR = 3;
@@ -64,14 +63,7 @@ public class MasterService {
     }
 
     /**
-     * ✅ NUEVO: Registra un chunkserver dinámicamente
-     */
-    public void registerChunkserver(String url) {
-        registerChunkserver(url, null);
-    }
-
-    /**
-     * ✅ MEJORADO: Registra un chunkserver con ID opcional
+     * Registra un chunkserver con ID opcional
      * Y verifica su integridad al registrarse
      */
     public synchronized void registerChunkserver(String url, String id) {
@@ -159,7 +151,7 @@ public class MasterService {
      * Planifica upload - SOLO USA CHUNKSERVERS ACTIVOS
      */
     public FileMetadata planUpload(String imagenId, long fileSize) {
-        // ✅ Verificar que hay chunkservers registrados
+        // Verificar que hay chunkservers registrados
         if (registeredChunkservers.isEmpty()) {
             throw new RuntimeException(
                     "No hay chunkservers registrados en el sistema. " +
@@ -252,19 +244,17 @@ public class MasterService {
     }
 
     /**
-     * Selecciona N chunkservers ACTIVOS diferentes para réplicas
+     * Selecciona N chunkservers ACTIVOS diferentes para réplicas usando round-robin sin estado
      */
     private List<String> selectHealthyChunkserversForReplicas(int numReplicas, List<String> healthyChunkservers) {
         List<String> selected = new ArrayList<>();
         List<String> available = new ArrayList<>(healthyChunkservers);
+        Collections.shuffle(available); // Distribución aleatoria para evitar hotspots
 
         int actualReplicas = Math.min(numReplicas, available.size());
 
-        // Round-robin sobre servidores ACTIVOS
         for (int i = 0; i < actualReplicas; i++) {
-            String chunkserver = available.get(nextChunkserverIndex % available.size());
-            selected.add(chunkserver);
-            nextChunkserverIndex++;
+            selected.add(available.get(i));
         }
 
         return selected;

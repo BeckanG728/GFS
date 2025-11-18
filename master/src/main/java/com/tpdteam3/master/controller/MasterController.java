@@ -41,14 +41,12 @@ public class MasterController {
     private MasterHeartbeatHandler heartbeatHandler;
 
     /**
-     * ✅ NUEVO ENDPOINT: Recibe heartbeats de chunkservers
-     * <p>
+     * Recibe heartbeats de chunkservers
      * Este endpoint reemplaza el sistema de polling del Master.
      * Los chunkservers llaman este endpoint cada 10 segundos para:
      * 1. Informar que están vivos
      * 2. Enviar inventario actualizado de chunks
      * 3. Reportar métricas de salud
-     * <p>
      * El Master puede responder con comandos opcionales que el chunkserver debe ejecutar.
      *
      * @param heartbeatData Datos del heartbeat enviados por el chunkserver
