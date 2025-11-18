@@ -140,11 +140,11 @@ public class ImagenController {
             return new ResponseEntity<>(imageData, headers, HttpStatus.OK);
 
         } catch (RuntimeException e) {
-            System.err.println("❌ ERROR en downloadImagen: " + e.getMessage());
+            System.err.println("ERROR en downloadImagen: " + e.getMessage());
             e.printStackTrace();
             return ResponseEntity.notFound().build();
         } catch (Exception e) {
-            System.err.println("❌ ERROR GENERAL en downloadImagen:");
+            System.err.println("ERROR GENERAL en downloadImagen:");
             e.printStackTrace();
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
