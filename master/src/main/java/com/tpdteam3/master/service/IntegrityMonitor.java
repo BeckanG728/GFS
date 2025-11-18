@@ -36,7 +36,7 @@ import java.util.stream.Collectors;
  * 6. Todo automático, sin intervención manual
  */
 @Service
-public class IntegrityMonitorService {
+public class IntegrityMonitor {
 
     // @Lazy para romper el ciclo de dependencias
     @Autowired
@@ -45,7 +45,7 @@ public class IntegrityMonitorService {
 
     @Autowired
     @Lazy
-    private MasterHeartbeatHandler heartbeatHandler;
+    private HeartbeatHandler heartbeatHandler;
 
     private final RestTemplate restTemplate;
 
@@ -61,7 +61,7 @@ public class IntegrityMonitorService {
     /**
      * Constructor que configura el RestTemplate con timeouts.
      */
-    public IntegrityMonitorService() {
+    public IntegrityMonitor() {
         org.springframework.http.client.SimpleClientHttpRequestFactory factory =
                 new org.springframework.http.client.SimpleClientHttpRequestFactory();
         factory.setConnectTimeout(5000);  // 5 segundos

@@ -1,10 +1,8 @@
 package com.tpdteam3.master.controller;
 
 import com.tpdteam3.master.model.FileMetadata;
-import com.tpdteam3.master.service.IntegrityMonitorService;
-import com.tpdteam3.master.service.MasterHeartbeatHandler;
+import com.tpdteam3.master.service.HeartbeatHandler;
 import com.tpdteam3.master.service.MasterService;
-import com.tpdteam3.master.service.ReplicationMonitorService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -28,17 +26,10 @@ public class MasterController {
     @Autowired
     private MasterService masterService;
 
-    @Autowired
-    private ReplicationMonitorService replicationMonitor;
-
-    @Autowired
-    private IntegrityMonitorService integrityMonitor;
-
     private final RestTemplate restTemplate = new RestTemplate();
 
-
     @Autowired
-    private MasterHeartbeatHandler heartbeatHandler;
+    private HeartbeatHandler heartbeatHandler;
 
     /**
      * Recibe heartbeats de chunkservers
@@ -287,10 +278,6 @@ public class MasterController {
     @GetMapping("/stats")
     public ResponseEntity<Map<String, Object>> getStats() {
         Map<String, Object> stats = masterService.getStats();
-
-        // ✅ NUEVO: Incluir estadísticas de integridad
-        stats.put("integrityStats", integrityMonitor.getStats());
-
         return ResponseEntity.ok(stats);
     }
 
@@ -334,34 +321,6 @@ public class MasterController {
         response.put("status", "success");
         response.put("message", "Health checks se ejecutan automáticamente cada 10 segundos");
         response.put("currentStatus", masterService.getHealthStatus());
-        return ResponseEntity.ok(response);
-    }
-
-    /**
-     * Obtiene estadísticas de re-replicación automática.
-     *
-     * @return Métricas de operaciones de re-replicación
-     */
-    @GetMapping("/replication/stats")
-    public ResponseEntity<Map<String, Object>> getReplicationStats() {
-        Map<String, Object> response = new HashMap<>();
-        response.put("status", "success");
-        response.put("replicationStats", replicationMonitor.getStats());
-        response.put("timestamp", System.currentTimeMillis());
-        return ResponseEntity.ok(response);
-    }
-
-    /**
-     * ✅ NUEVO: Obtiene estadísticas del sistema de integridad y reparación automática.
-     *
-     * @return Métricas de chunks detectados y reparados
-     */
-    @GetMapping("/integrity/stats")
-    public ResponseEntity<Map<String, Object>> getIntegrityStats() {
-        Map<String, Object> response = new HashMap<>();
-        response.put("status", "success");
-        response.put("integrityStats", integrityMonitor.getStats());
-        response.put("timestamp", System.currentTimeMillis());
         return ResponseEntity.ok(response);
     }
 

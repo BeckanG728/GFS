@@ -23,11 +23,11 @@ import java.util.concurrent.TimeUnit;
  * 5. Detecta cambios y dispara acciones correctivas
  */
 @Service
-public class MasterHeartbeatHandler {
+public class HeartbeatHandler {
 
     @Autowired
     @Lazy
-    private IntegrityMonitorService integrityMonitor;
+    private IntegrityMonitor integrityMonitor;
 
     // Almacena información de cada chunkserver
     private final Map<String, ChunkserverHeartbeatInfo> chunkserverHeartbeats = new ConcurrentHashMap<>();
@@ -41,7 +41,7 @@ public class MasterHeartbeatHandler {
     @PostConstruct
     public void init() {
         System.out.println("╔════════════════════════════════════════════════════════╗");
-        System.out.println("║  💓 HEARTBEAT HANDLER - MODO RECEPTOR                 ║");
+        System.out.println("║      HEARTBEAT HANDLER - MODO RECEPTOR                 ║");
         System.out.println("╚════════════════════════════════════════════════════════╝");
         System.out.println("✅ Esperando heartbeats de chunkservers...");
         System.out.println("⏱️  Timeout de heartbeat: " + HEARTBEAT_TIMEOUT_SECONDS + " segundos");

@@ -29,7 +29,7 @@ public class ReplicationMonitorService {
     private MasterService masterService;
 
     @Autowired
-    private MasterHeartbeatHandler heartbeatHandler;
+    private HeartbeatHandler heartbeatHandler;
 
     private final RestTemplate restTemplate;
     private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);

@@ -18,11 +18,11 @@ public class MasterService {
     private MetadataPersistenceService persistenceService;
 
     @Autowired
-    private MasterHeartbeatHandler heartbeatHandler;
+    private HeartbeatHandler heartbeatHandler;
 
     @Autowired
     @Lazy
-    private IntegrityMonitorService integrityMonitor;
+    private IntegrityMonitor integrityMonitor;
 
     // Almacena metadatos de archivos en memoria
     private Map<String, FileMetadata> fileMetadataStore;
