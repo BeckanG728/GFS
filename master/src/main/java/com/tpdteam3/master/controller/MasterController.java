@@ -70,7 +70,7 @@ public class MasterController {
             return ResponseEntity.ok(response);
 
         } catch (Exception e) {
-            System.err.println("❌ Error procesando heartbeat: " + e.getMessage());
+            System.err.println("Error procesando heartbeat: " + e.getMessage());
             e.printStackTrace();
 
             Map<String, Object> error = new HashMap<>();
@@ -81,7 +81,7 @@ public class MasterController {
     }
 
     /**
-     * ✅ MODIFICADO: Ahora usa el heartbeat handler en lugar del health monitor
+     * MODIFICADO: Ahora usa el heartbeat handler en lugar del health monitor
      */
     @GetMapping("/chunkservers")
     public ResponseEntity<Map<String, Object>> listChunkservers() {
