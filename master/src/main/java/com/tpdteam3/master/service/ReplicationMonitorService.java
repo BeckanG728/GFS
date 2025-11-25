@@ -39,16 +39,16 @@ public class ReplicationMonitorService {
     private static final int TARGET_REPLICATION_FACTOR = 3;
     private static final int MAX_CONCURRENT_REREPLICATIONS = 2; // Máximo 2 archivos replicándose al mismo tiempo
 
-    // ✅ NUEVO: Prevenir operaciones conflictivas
+    // Prevenir operaciones conflictivas
     private static final int MIN_REPLICATION_FACTOR = 2; // No eliminar si hay menos de esto
     private static final long COOLDOWN_AFTER_REPAIR_MS = 60000; // 60 segundos de espera después de reparar
 
     // Estado
     private final Set<String> currentlyReplicating = ConcurrentHashMap.newKeySet();
-    private final Map<String, Long> lastRepairTime = new ConcurrentHashMap<>(); // ✅ NUEVO: Track de última reparación
+    private final Map<String, Long> lastRepairTime = new ConcurrentHashMap<>(); // Track de última reparación
     private long totalReplicationsMade = 0;
     private long totalReplicationAttempts = 0;
-    private long totalCleanupOperations = 0; // ✅ NUEVO: Contador de limpiezas
+    private long totalCleanupOperations = 0; // Contador de limpiezas
 
     public ReplicationMonitorService() {
         // Configurar RestTemplate con timeouts
@@ -62,7 +62,7 @@ public class ReplicationMonitorService {
     @PostConstruct
     public void startMonitoring() {
         System.out.println("╔════════════════════════════════════════════════════════╗");
-        System.out.println("║  🔄 INICIANDO RE-REPLICATION MONITOR                  ║");
+        System.out.println("║      INICIANDO RE-REPLICATION MONITOR                  ║");
         System.out.println("╚════════════════════════════════════════════════════════╝");
         System.out.println("⏱️  Intervalo de verificación: " + REPLICATION_CHECK_INTERVAL_SECONDS + " segundos");
         System.out.println("🎯 Factor de replicación objetivo: " + TARGET_REPLICATION_FACTOR);

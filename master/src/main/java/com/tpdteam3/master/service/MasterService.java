@@ -27,7 +27,7 @@ public class MasterService {
     // Almacena metadatos de archivos en memoria
     private Map<String, FileMetadata> fileMetadataStore;
 
-    // ✅ SIMPLIFICADO: Estado de chunkservers directamente aquí
+    // Estado de chunkservers directamente aquí
     private final Map<String, ChunkserverInfo> registeredChunkservers = new ConcurrentHashMap<>();
 
     // Configuración
@@ -39,18 +39,18 @@ public class MasterService {
     @PostConstruct
     public void init() {
         System.out.println("╔════════════════════════════════════════════════════════╗");
-        System.out.println("║         🚀 MASTER SERVICE - INICIALIZADO              ║");
+        System.out.println("║             MASTER SERVICE - INICIALIZADO              ║");
         System.out.println("╚════════════════════════════════════════════════════════╝");
 
         // Cargar metadatos desde disco
         fileMetadataStore = persistenceService.loadMetadata();
 
-        System.out.println("📊 Configuración:");
+        System.out.println("Configuración:");
         System.out.println("   ├─ Metadatos recuperados: " + fileMetadataStore.size() + " archivos");
         System.out.println("   ├─ Factor de replicación: " + REPLICATION_FACTOR + "x");
         System.out.println("   └─ Tamaño de fragmento: " + (CHUNK_SIZE / 1024) + " KB");
         System.out.println();
-        System.out.println("⏳ Esperando registro de chunkservers...");
+        System.out.println("Esperando registro de chunkservers...");
         System.out.println();
     }
 
@@ -73,16 +73,16 @@ public class MasterService {
         registeredChunkservers.put(url, info);
 
         System.out.println("╔════════════════════════════════════════════════════════╗");
-        System.out.println("║  ✅ CHUNKSERVER " + (isNewRegistration ? "REGISTRADO" : "RE-REGISTRADO") + "                      ║");
+        System.out.println("║ CHUNKSERVER " + (isNewRegistration ? "REGISTRADO" : "RE-REGISTRADO") + "                      ║");
         System.out.println("╚════════════════════════════════════════════════════════╝");
         System.out.println("   URL: " + url);
         System.out.println("   ID: " + chunkserverId);
         System.out.println("   Total registrados: " + registeredChunkservers.size());
 
-        // ✅ Verificar integridad al registrar/re-registrar
+        // Verificar integridad al registrar/re-registrar
         // Esto detecta chunks eliminados mientras el Master estaba caído
         if (!isNewRegistration || fileMetadataStore.size() > 0) {
-            System.out.println("   🔍 Verificando integridad de chunks...");
+            System.out.println("   Verificando integridad de chunks...");
 
             // Pequeña pausa para que el chunkserver esté listo
             try {
@@ -107,7 +107,7 @@ public class MasterService {
 
         if (removed != null) {
             System.out.println("╔════════════════════════════════════════════════════════╗");
-            System.out.println("║  ⚠️  CHUNKSERVER DESREGISTRADO                        ║");
+            System.out.println("║       CHUNKSERVER DESREGISTRADO                        ║");
             System.out.println("╚════════════════════════════════════════════════════════╝");
             System.out.println("   URL: " + url);
             System.out.println("   ID: " + removed.getId());
@@ -200,7 +200,7 @@ public class MasterService {
         int numChunks = (int) Math.ceil((double) fileSize / CHUNK_SIZE);
 
         System.out.println("╔════════════════════════════════════════════════════════╗");
-        System.out.println("║  📋 PLANIFICANDO UPLOAD                               ║");
+        System.out.println("║      PLANIFICANDO UPLOAD                               ║");
         System.out.println("╚════════════════════════════════════════════════════════╝");
         System.out.println("   ImagenId: " + imagenId);
         System.out.println("   Tamaño: " + fileSize + " bytes");

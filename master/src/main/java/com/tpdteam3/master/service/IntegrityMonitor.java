@@ -84,9 +84,8 @@ public class IntegrityMonitor {
     }
 
     /**
-     * ✅ HANDLER: Llamado cuando el HealthMonitor detecta cambios en el inventario de un servidor.
+     * Llamado cuando el HealthHandler detecta cambios en el inventario de un servidor.
      * Este es el punto de entrada principal para la detección de eliminaciones manuales.
-     * <p>
      * Escenario típico:
      * - Usuario borra archivo "imagen-uuid_chunk_2.bin" del disco
      * - HealthMonitor lo detecta en el próximo health check (10 segundos)
@@ -106,7 +105,7 @@ public class IntegrityMonitor {
         }
 
         System.out.println("╔════════════════════════════════════════════════════════╗");
-        System.out.println("║  🚨 CHUNKS ELIMINADOS DETECTADOS                     ║");
+        System.out.println("║       CHUNKS ELIMINADOS DETECTADOS                     ║");
         System.out.println("╚════════════════════════════════════════════════════════╝");
         System.out.println("   Servidor: " + chunkserverUrl);
         System.out.println("   Chunks eliminados: " + removedChunks.size());
@@ -139,7 +138,7 @@ public class IntegrityMonitor {
     }
 
     /**
-     * ✅ HANDLER: Llamado cuando un servidor se cae.
+     * Llamado cuando un servidor se cae.
      * No hacemos nada inmediatamente porque el servidor puede recuperarse.
      * El ReplicationMonitorService manejará la re-replicación si el servidor no vuelve.
      *
@@ -151,7 +150,7 @@ public class IntegrityMonitor {
     }
 
     /**
-     * ✅ HANDLER: Llamado cuando un servidor se recupera después de estar caído.
+     * Llamado cuando un servidor se recupera después de estar caído.
      * Verificamos que tenga todos los chunks que debería tener según el Master.
      *
      * @param chunkserverUrl URL del servidor recuperado
@@ -190,7 +189,7 @@ public class IntegrityMonitor {
     }
 
     /**
-     * ✅ NUEVO: Llamado cuando un chunkserver se registra o re-registra.
+     * Llamado cuando un chunkserver se registra o re-registra.
      * Verifica que el servidor tenga todos los chunks que debería tener.
      * Esto detecta eliminaciones que ocurrieron mientras el Master estaba caído.
      *
@@ -276,8 +275,7 @@ public class IntegrityMonitor {
     }
 
     /**
-     * 🔧 MÉTODO PRINCIPAL DE REPARACIÓN
-     * <p>
+     * MÉTODO PRINCIPAL DE REPARACIÓN
      * Repara un chunk específico que falta en un servidor:
      * 1. Verifica que el Master conozca este chunk
      * 2. Busca otra réplica disponible del mismo chunk

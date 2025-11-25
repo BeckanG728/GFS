@@ -71,9 +71,6 @@ public class MasterController {
         }
     }
 
-    /**
-     * MODIFICADO: Ahora usa el heartbeat handler en lugar del health monitor
-     */
     @GetMapping("/chunkservers")
     public ResponseEntity<Map<String, Object>> listChunkservers() {
         List<String> allServers = masterService.getAllChunkservers();

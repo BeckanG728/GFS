@@ -58,7 +58,7 @@ public class HeartbeatHandler {
 
     @PreDestroy
     public void shutdown() {
-        System.out.println("🛑 Deteniendo Heartbeat Handler...");
+        System.out.println("Deteniendo Heartbeat Handler...");
         scheduler.shutdown();
         try {
             if (!scheduler.awaitTermination(5, TimeUnit.SECONDS)) {
@@ -71,7 +71,7 @@ public class HeartbeatHandler {
     }
 
     /**
-     * ✅ MÉTODO PRINCIPAL: Procesa un heartbeat recibido de un chunkserver
+     * MÉTODO PRINCIPAL: Procesa un heartbeat recibido de un chunkserver
      * Este método es llamado por el MasterController cuando llega un POST /api/master/heartbeat
      */
     public Map<String, Object> processHeartbeat(Map<String, Object> heartbeatData) {
@@ -151,7 +151,7 @@ public class HeartbeatHandler {
                 info.markAsDead();
 
                 System.out.println("╔════════════════════════════════════════════════════════╗");
-                System.out.println("║  ⚠️  CHUNKSERVER TIMEOUT                              ║");
+                System.out.println("║       CHUNKSERVER TIMEOUT                              ║");
                 System.out.println("╚════════════════════════════════════════════════════════╝");
                 System.out.println("   URL: " + url);
                 System.out.println("   Último heartbeat: " + (timeSinceLastHeartbeat / 1000) + " segundos atrás");
@@ -172,7 +172,7 @@ public class HeartbeatHandler {
     private void handleChunkserverRecovery(String url, String chunkserverId,
                                            Map<String, List<Integer>> inventory) {
         System.out.println("╔════════════════════════════════════════════════════════╗");
-        System.out.println("║  ✅ CHUNKSERVER RECOVERED                             ║");
+        System.out.println("║      CHUNKSERVER RECOVERED                             ║");
         System.out.println("╚════════════════════════════════════════════════════════╝");
         System.out.println("   URL: " + url);
         System.out.println("   ID: " + chunkserverId);
@@ -195,7 +195,7 @@ public class HeartbeatHandler {
      */
     private void handleChunkserverShutdown(String url, String chunkserverId) {
         System.out.println("╔════════════════════════════════════════════════════════╗");
-        System.out.println("║  🛑 CHUNKSERVER SHUTDOWN (GRACEFUL)                   ║");
+        System.out.println("║      CHUNKSERVER SHUTDOWN (GRACEFUL)                   ║");
         System.out.println("╚════════════════════════════════════════════════════════╝");
         System.out.println("   URL: " + url);
         System.out.println("   ID: " + chunkserverId);
@@ -221,7 +221,7 @@ public class HeartbeatHandler {
         Set<String> removedChunks = findRemovedChunks(oldInventory, newInventory);
 
         if (!removedChunks.isEmpty()) {
-            System.out.println("   ❌ Chunks eliminados: " + removedChunks.size());
+            System.out.println("Chunks eliminados: " + removedChunks.size());
 
             // Notificar al IntegrityMonitor
             if (integrityMonitor != null) {

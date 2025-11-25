@@ -45,16 +45,16 @@ public class MetadataPersistenceService {
         Path storagePath = Paths.get(metadataStoragePath).toAbsolutePath().normalize();
 
         System.out.println("╔════════════════════════════════════════════════════════╗");
-        System.out.println("║  💾 INICIALIZANDO PERSISTENCIA DE METADATOS          ║");
+        System.out.println("║       INICIALIZANDO PERSISTENCIA DE METADATOS          ║");
         System.out.println("╚════════════════════════════════════════════════════════╝");
-        System.out.println("📂 Ruta de persistencia: " + storagePath);
+        System.out.println(" Ruta de persistencia: " + storagePath);
 
         // Crear directorio si no existe
         if (!Files.exists(storagePath)) {
             Files.createDirectories(storagePath);
-            System.out.println("✅ Directorio de metadatos creado");
+            System.out.println("Directorio de metadatos creado");
         } else {
-            System.out.println("✅ Directorio de metadatos existente");
+            System.out.println("Directorio de metadatos existente");
         }
 
         // Definir rutas de archivos
@@ -64,17 +64,17 @@ public class MetadataPersistenceService {
         // Verificar permisos
         File storageDir = storagePath.toFile();
         if (!storageDir.canWrite()) {
-            System.err.println("❌ ADVERTENCIA: Sin permisos de escritura en: " + storagePath);
+            System.err.println("ADVERTENCIA: Sin permisos de escritura en: " + storagePath);
         } else {
-            System.out.println("✅ Permisos de escritura verificados");
+            System.out.println("Permisos de escritura verificados");
         }
 
         // Mostrar estado
         if (Files.exists(metadataFilePath)) {
             long size = Files.size(metadataFilePath);
-            System.out.println("📄 Archivo de metadatos existente: " + size + " bytes");
+            System.out.println("Archivo de metadatos existente: " + size + " bytes");
         } else {
-            System.out.println("📄 Archivo de metadatos será creado en primera escritura");
+            System.out.println("Archivo de metadatos será creado en primera escritura");
         }
 
         System.out.println();
@@ -87,11 +87,11 @@ public class MetadataPersistenceService {
         lock.readLock().lock();
         try {
             if (!Files.exists(metadataFilePath)) {
-                System.out.println("ℹ️  No hay metadatos previos para cargar");
+                System.out.println("No hay metadatos previos para cargar");
                 return new ConcurrentHashMap<>();
             }
 
-            System.out.println("📥 Cargando metadatos desde disco...");
+            System.out.println("Cargando metadatos desde disco...");
 
             // Leer archivo JSON
             Map<String, FileMetadata> metadata = objectMapper.readValue(
@@ -101,7 +101,7 @@ public class MetadataPersistenceService {
                     )
             );
 
-            System.out.println("✅ Metadatos cargados exitosamente");
+            System.out.println("Metadatos cargados exitosamente");
             System.out.println("   └─ Total de archivos: " + metadata.size());
 
             // Mostrar resumen
@@ -121,7 +121,7 @@ public class MetadataPersistenceService {
             return new ConcurrentHashMap<>(metadata);
 
         } catch (IOException e) {
-            System.err.println("❌ ERROR cargando metadatos: " + e.getMessage());
+            System.err.println("ERROR cargando metadatos: " + e.getMessage());
             System.err.println("   Se iniciará con metadatos vacíos");
             e.printStackTrace();
             return new ConcurrentHashMap<>();
@@ -148,10 +148,10 @@ public class MetadataPersistenceService {
                     StandardCopyOption.ATOMIC_MOVE
             );
 
-            System.out.println("💾 Metadatos persistidos: " + metadata.size() + " archivos");
+            System.out.println("Metadatos persistidos: " + metadata.size() + " archivos");
 
         } catch (IOException e) {
-            System.err.println("❌ ERROR persistiendo metadatos: " + e.getMessage());
+            System.err.println("ERROR persistiendo metadatos: " + e.getMessage());
             e.printStackTrace();
 
             // Intentar limpiar archivo temporal
@@ -160,7 +160,7 @@ public class MetadataPersistenceService {
                     Files.delete(tempMetadataFilePath);
                 }
             } catch (IOException cleanupEx) {
-                System.err.println("⚠️  No se pudo limpiar archivo temporal");
+                System.err.println("  No se pudo limpiar archivo temporal");
             }
         } finally {
             lock.writeLock().unlock();
@@ -180,7 +180,7 @@ public class MetadataPersistenceService {
     public void deleteFileMetadata(String imagenId, Map<String, FileMetadata> allMetadata) {
         allMetadata.remove(imagenId);
         saveMetadata(allMetadata);
-        System.out.println("🗑️  Metadatos eliminados de persistencia: " + imagenId);
+        System.out.println("Metadatos eliminados de persistencia: " + imagenId);
     }
 
     /**
