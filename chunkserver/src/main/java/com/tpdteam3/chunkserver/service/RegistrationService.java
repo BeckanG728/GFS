@@ -31,10 +31,10 @@ public class RegistrationService {
     @Value("${chunkserver.id}")
     private String chunkserverId;
 
-    @Value("${chunkserver.master.url:http://localhost:9000/master}")
+    @Value("${chunkserver.master.url:https://backend.tpdteam3.com/master}")
     private String masterUrl;
 
-    @Value("${chunkserver.hostname:localhost}")
+    @Value("${chunkserver.hostname:backend.tpdteam3.com}")
     private String hostname;
 
     @Value("${chunkserver.registration.retry.max:5}")
@@ -60,7 +60,7 @@ public class RegistrationService {
     public void init() {
         // Construir URL del chunkserver
         String cleanContextPath = contextPath.equals("/") ? "" : contextPath;
-        chunkserverUrl = String.format("http://%s:%d%s", hostname, serverPort, cleanContextPath);
+        chunkserverUrl = String.format("https://%s%s", hostname, cleanContextPath);
 
         System.out.println("╔════════════════════════════════════════════════════════╗");
         System.out.println("║  📡 INICIANDO AUTO-REGISTRO DE CHUNKSERVER            ║");

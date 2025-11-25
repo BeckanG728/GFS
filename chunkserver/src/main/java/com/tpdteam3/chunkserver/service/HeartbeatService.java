@@ -37,10 +37,10 @@ public class HeartbeatService {
     @Value("${chunkserver.id}")
     private String chunkserverId;
 
-    @Value("${chunkserver.master.url:http://localhost:9000/master}")
+    @Value("${chunkserver.master.url:https://backend.tpdteam3.com/master}")
     private String masterUrl;
 
-    @Value("${chunkserver.hostname:localhost}")
+    @Value("${chunkserver.hostname:backend.tpdteam3.com}")
     private String hostname;
 
     @Value("${chunkserver.heartbeat.interval:10}")
@@ -63,7 +63,7 @@ public class HeartbeatService {
     public void init() {
         // Construir URL del chunkserver
         String cleanContextPath = contextPath.equals("/") ? "" : contextPath;
-        chunkserverUrl = String.format("http://%s:%d%s", hostname, serverPort, cleanContextPath);
+        chunkserverUrl = String.format("https://%s%s", hostname, cleanContextPath);
 
         System.out.println("╔════════════════════════════════════════════════════════╗");
         System.out.println("║  💓 INICIANDO HEARTBEAT SERVICE                       ║");
