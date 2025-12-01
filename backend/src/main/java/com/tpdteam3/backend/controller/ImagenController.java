@@ -48,9 +48,9 @@ public class ImagenController {
             // 2. Obtener producto - CAPTURAR ESPECÍFICAMENTE ESTE ERROR
             try {
                 producto = productoService.obtener(productoId);
-                System.out.println("✅ Producto encontrado: " + producto.getNombProd());
+                System.out.println("Producto encontrado: " + producto.getNombProd());
             } catch (RuntimeException e) {
-                System.err.println("❌ ERROR: Producto no encontrado - ID: " + productoId);
+                System.err.println("ERROR: Producto no encontrado - ID: " + productoId);
                 Map<String, String> error = new HashMap<>();
                 error.put("status", "error");
                 error.put("message", "Producto no encontrado con ID: " + productoId);
@@ -87,7 +87,7 @@ public class ImagenController {
 
         } catch (ResourceAccessException e) {
             // Error de conexión con Master Service
-            System.err.println("❌ ERROR DE CONEXIÓN con Master Service:");
+            System.err.println("ERROR DE CONEXIÓN con Master Service:");
             e.printStackTrace();
             Map<String, String> error = new HashMap<>();
             error.put("status", "error");
