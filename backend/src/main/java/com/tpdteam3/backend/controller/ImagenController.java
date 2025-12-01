@@ -3,6 +3,8 @@ package com.tpdteam3.backend.controller;
 import com.tpdteam3.backend.entity.Producto;
 import com.tpdteam3.backend.service.DFSService;
 import com.tpdteam3.backend.service.ProductoService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -19,6 +21,8 @@ import java.util.Map;
 @RequestMapping("/api/imagenes")
 public class ImagenController {
 
+    private static final Logger logger = LoggerFactory.getLogger(ImagenController.class);
+
     @Autowired
     private DFSService dfsService;
 
@@ -33,24 +37,27 @@ public class ImagenController {
             @PathVariable Integer productoId,
             @RequestParam("file") MultipartFile file) {
 
-        Producto producto = null;
+        logger.info("Solicitud de upload de imagen - ProductoID: {}, Filename: {}",
+                productoId, file.getOriginalFilename());
 
         try {
             // 1. Validar que el archivo sea una imagen
             String contentType = file.getContentType();
             if (contentType == null || !contentType.startsWith("image/")) {
+                logger.warn("Archivo invalido - ProductoID: {}, ContentType: {}", productoId, contentType);
                 Map<String, String> error = new HashMap<>();
                 error.put("status", "error");
                 error.put("message", "El archivo debe ser una imagen");
                 return ResponseEntity.badRequest().body(error);
             }
 
-            // 2. Obtener producto - CAPTURAR ESPECÍFICAMENTE ESTE ERROR
+            // 2. Obtener producto
+            Producto producto;
             try {
                 producto = productoService.obtener(productoId);
-                System.out.println("Producto encontrado: " + producto.getNombProd());
+                logger.debug("Producto encontrado - ID: {}, Nombre: {}", productoId, producto.getNombProd());
             } catch (RuntimeException e) {
-                System.err.println("ERROR: Producto no encontrado - ID: " + productoId);
+                logger.error("Producto no encontrado - ID: {}", productoId);
                 Map<String, String> error = new HashMap<>();
                 error.put("status", "error");
                 error.put("message", "Producto no encontrado con ID: " + productoId);
@@ -61,22 +68,23 @@ public class ImagenController {
             if (producto.getImagenId() != null) {
                 try {
                     dfsService.deleteImagen(producto.getImagenId());
-                    System.out.println("✅ Imagen anterior eliminada: " + producto.getImagenId());
+                    logger.info("Imagen anterior eliminada - ImagenID: {}", producto.getImagenId());
                 } catch (Exception e) {
-                    System.err.println("⚠️ Error eliminando imagen anterior: " + e.getMessage());
+                    logger.warn("Error eliminando imagen anterior - ImagenID: {}, Error: {}",
+                            producto.getImagenId(), e.getMessage());
                 }
             }
 
             // 4. Subir nueva imagen al sistema distribuido
-            System.out.println("📤 Intentando subir imagen al DFS...");
+            logger.info("Subiendo imagen al DFS - ProductoID: {}", productoId);
             String imagenId = dfsService.uploadImagen(file);
-            System.out.println("✅ Imagen subida al DFS con ID: " + imagenId);
+            logger.info("Imagen subida exitosamente - ImagenID: {}", imagenId);
 
             // 5. Actualizar producto con referencia a la imagen
             producto.setImagenId(imagenId);
             producto.setImagenNombre(file.getOriginalFilename());
             productoService.actualizar(producto);
-            System.out.println("✅ Producto actualizado en BD");
+            logger.info("Producto actualizado en BD - ProductoID: {}, ImagenID: {}", productoId, imagenId);
 
             Map<String, String> response = new HashMap<>();
             response.put("status", "success");
@@ -87,8 +95,8 @@ public class ImagenController {
 
         } catch (ResourceAccessException e) {
             // Error de conexión con Master Service
-            System.err.println("ERROR DE CONEXIÓN con Master Service:");
-            e.printStackTrace();
+            logger.error("Error de conexion con Master Service - ProductoID: {}, Error: {}",
+                    productoId, e.getMessage(), e);
             Map<String, String> error = new HashMap<>();
             error.put("status", "error");
             error.put("message", "No se puede conectar al Master Service. Verifica que esté corriendo en http://localhost:9000/master");
@@ -97,8 +105,8 @@ public class ImagenController {
 
         } catch (Exception e) {
             // Cualquier otro error
-            System.err.println("❌ ERROR GENERAL al subir imagen:");
-            e.printStackTrace();
+            logger.error("Error general al subir imagen - ProductoID: {}, Error: {}",
+                    productoId, e.getMessage(), e);
             Map<String, String> error = new HashMap<>();
             error.put("status", "error");
             error.put("message", "Error al subir imagen: " + e.getMessage());
@@ -112,11 +120,13 @@ public class ImagenController {
      */
     @GetMapping("/download/{productoId}")
     public ResponseEntity<byte[]> downloadImagen(@PathVariable Integer productoId) {
+        logger.debug("Solicitud de download de imagen - ProductoID: {}", productoId);
         try {
             // Obtener producto
             Producto producto = productoService.obtener(productoId);
 
             if (producto.getImagenId() == null) {
+                logger.warn("Producto sin imagen - ProductoID: {}", productoId);
                 return ResponseEntity.notFound().build();
             }
 
@@ -137,15 +147,16 @@ public class ImagenController {
             headers.setContentType(MediaType.parseMediaType(contentType));
             headers.setContentLength(imageData.length);
 
+            logger.info("Imagen descargada exitosamente - ProductoID: {}, Size: {} bytes",
+                    productoId, imageData.length);
             return new ResponseEntity<>(imageData, headers, HttpStatus.OK);
 
         } catch (RuntimeException e) {
-            System.err.println("ERROR en downloadImagen: " + e.getMessage());
-            e.printStackTrace();
+            logger.error("Error en download de imagen - ProductoID: {}, Error: {}", productoId, e.getMessage());
             return ResponseEntity.notFound().build();
         } catch (Exception e) {
-            System.err.println("ERROR GENERAL en downloadImagen:");
-            e.printStackTrace();
+            logger.error("Error general en download de imagen - ProductoID: {}, Error: {}",
+                    productoId, e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
     }
@@ -155,10 +166,12 @@ public class ImagenController {
      */
     @DeleteMapping("/{productoId}")
     public ResponseEntity<Map<String, String>> deleteImagen(@PathVariable Integer productoId) {
+        logger.info("Solicitud de eliminacion de imagen - ProductoID: {}", productoId);
         try {
             Producto producto = productoService.obtener(productoId);
 
             if (producto.getImagenId() == null) {
+                logger.warn("Intento de eliminar imagen inexistente - ProductoID: {}", productoId);
                 Map<String, String> error = new HashMap<>();
                 error.put("status", "error");
                 error.put("message", "El producto no tiene imagen");
@@ -172,6 +185,7 @@ public class ImagenController {
             producto.setImagenId(null);
             producto.setImagenNombre(null);
             productoService.actualizar(producto);
+            logger.info("Imagen eliminada exitosamente - ProductoID: {}", productoId);
 
             Map<String, String> response = new HashMap<>();
             response.put("status", "success");
@@ -180,12 +194,14 @@ public class ImagenController {
             return ResponseEntity.ok(response);
 
         } catch (RuntimeException e) {
+            logger.error("Producto no encontrado al eliminar imagen - ProductoID: {}", productoId);
             Map<String, String> error = new HashMap<>();
             error.put("status", "error");
             error.put("message", "Producto no encontrado");
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(error);
         } catch (Exception e) {
-            e.printStackTrace();
+            logger.error("Error al eliminar imagen - ProductoID: {}, Error: {}",
+                    productoId, e.getMessage(), e);
             Map<String, String> error = new HashMap<>();
             error.put("status", "error");
             error.put("message", "Error al eliminar imagen: " + e.getMessage());

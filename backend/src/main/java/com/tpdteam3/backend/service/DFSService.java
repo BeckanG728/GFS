@@ -1,5 +1,7 @@
 package com.tpdteam3.backend.service;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
@@ -10,6 +12,7 @@ import java.util.stream.Collectors;
 @Service
 public class DFSService {
 
+    private static final Logger logger = LoggerFactory.getLogger(DFSService.class);
     private static final int CHUNK_SIZE = 32 * 1024; // 32KB
 
     private final DFSMasterClient masterClient;
@@ -29,21 +32,15 @@ public class DFSService {
         String imagenId = UUID.randomUUID().toString();
         byte[] imageBytes = file.getBytes();
 
-        System.out.println("╔════════════════════════════════════════════════════════╗");
-        System.out.println("║  📤 SUBIENDO IMAGEN (SERVIDORES ACTIVOS)             ║");
-        System.out.println("╚════════════════════════════════════════════════════════╝");
-        System.out.println("   ImagenId: " + imagenId);
-        System.out.println("   Tamaño: " + imageBytes.length + " bytes");
+        logger.info("Iniciando upload de imagen - ID: {}, Size: {} bytes", imagenId, imageBytes.length);
 
         List<Map<String, Object>> allChunks = masterClient.requestUploadChunks(imagenId, imageBytes.length);
 
         Map<Integer, List<Map<String, Object>>> chunksByIndex = allChunks.stream()
                 .collect(Collectors.groupingBy(chunk -> (Integer) chunk.get("chunkIndex")));
 
-        System.out.println("   Fragmentos: " + chunksByIndex.size());
-        System.out.println("   Total réplicas: " + allChunks.size());
-        System.out.println("   ✅ Todas las réplicas están en servidores ACTIVOS");
-        System.out.println();
+        logger.info("Chunks asignados - Total chunks: {}, Total replicas: {}",
+                chunksByIndex.size(), allChunks.size());
 
         int offset = 0;
         int successfulWrites = 0;
@@ -57,7 +54,8 @@ public class DFSService {
             byte[] chunkData = Arrays.copyOfRange(imageBytes, offset, offset + length);
             String base64Data = Base64.getEncoder().encodeToString(chunkData);
 
-            System.out.println("   📦 Fragmento " + chunkIndex + " (" + length + " bytes):");
+            logger.debug("Procesando chunk {} - Size: {} bytes, Replicas: {}",
+                    chunkIndex, length, replicas.size());
 
             for (Map<String, Object> replica : replicas) {
                 String chunkserverUrl = (String) replica.get("chunkserverUrl");
@@ -69,12 +67,14 @@ public class DFSService {
                     chunkServerClient.writeChunk(imagenId, chunkIndex, base64Data, chunkserverUrl);
 
                     String replicaType = replicaIndex == 0 ? "PRIMARIA" : "RÉPLICA " + replicaIndex;
-                    System.out.println("      ✅ [" + replicaType + "] → " + chunkserverUrl);
+                    logger.debug("Chunk {} escrito exitosamente - Type: {}, CS: {}",
+                            chunkIndex, replicaType, chunkserverUrl);
+
                     successfulWrites++;
                 } catch (Exception e) {
-                    String replicaType = replicaIndex == 0 ? "PRIMARIA" : "RÉPLICA " + replicaIndex;
-                    System.err.println("      ⚠️ [" + replicaType + "] → " + chunkserverUrl +
-                                       " - Error inesperado: " + e.getMessage());
+                    String replicaType = replicaIndex == 0 ? "PRIMARY" : "REPLICA_" + replicaIndex;
+                    logger.warn("Fallo al escribir chunk {} en {} - Type: {}, Error: {}",
+                            chunkIndex, chunkserverUrl, replicaType, e.getMessage());
                     failedWrites++;
                 }
             }
@@ -82,32 +82,26 @@ public class DFSService {
             offset += length;
         }
 
-        System.out.println();
-        System.out.println("📊 Resultado:");
-        System.out.println("   ✅ Exitosas: " + successfulWrites);
         if (failedWrites > 0) {
-            System.out.println("   ⚠️ Fallidas: " + failedWrites + " (inesperadas)");
+            logger.warn("Upload completado con errores - ID: {}, Exitosas: {}, Fallidas: {}",
+                    imagenId, successfulWrites, failedWrites);
+        } else {
+            logger.info("Upload completado exitosamente - ID: {}, Total writes: {}", imagenId, successfulWrites);
         }
-        System.out.println();
 
         return imagenId;
     }
 
     public byte[] downloadImagen(String imagenId) throws Exception {
-        System.out.println("╔════════════════════════════════════════════════════════╗");
-        System.out.println("║  📥 DESCARGANDO CON FALLBACK INTELIGENTE             ║");
-        System.out.println("╚════════════════════════════════════════════════════════╝");
-        System.out.println("   ImagenId: " + imagenId);
+        logger.info("Iniciando download de imagen - ID: {}", imagenId);
 
         List<Map<String, Object>> allChunks = masterClient.getImageMetadata(imagenId);
 
         Map<Integer, List<Map<String, Object>>> chunksByIndex = allChunks.stream()
                 .collect(Collectors.groupingBy(chunk -> (Integer) chunk.get("chunkIndex")));
 
-        System.out.println("   Fragmentos: " + chunksByIndex.size());
-        System.out.println("   Réplicas disponibles: " + allChunks.size());
-        System.out.println("   ✅ Todas pre-filtradas por Health Monitor");
-        System.out.println();
+        logger.info("Metadata obtenida - Total chunks: {}, Total replicas: {}",
+                chunksByIndex.size(), allChunks.size());
 
         List<byte[]> chunkDataList = new ArrayList<>(chunksByIndex.size());
         int successfulReads = 0;
@@ -117,10 +111,11 @@ public class DFSService {
             List<Map<String, Object>> replicas = chunksByIndex.get(i);
 
             if (replicas == null || replicas.isEmpty()) {
+                logger.error("Chunk {} no disponible - ID: {}", i, imagenId);
                 throw new RuntimeException("Fragmento " + i + " no disponible");
             }
 
-            System.out.println("   📦 Fragmento " + i + " (" + replicas.size() + " réplicas activas):");
+            logger.debug("Procesando chunk {} - Replicas disponibles: {}", i, replicas.size());
 
             byte[] chunkData = null;
             int attemptCount = 0;
@@ -135,30 +130,34 @@ public class DFSService {
                 try {
                     chunkData = chunkServerClient.readChunk(imagenId, i, chunkserverUrl); // Data bytes []
 
-                    String replicaType = replicaIndex == 0 ? "PRIMARIA" : "RÉPLICA " + replicaIndex;
-                    System.out.println("      ✅ [" + replicaType + "] → " + chunkserverUrl);
+                    String replicaType = replicaIndex == 0 ? "PRIMARY" : "REPLICA_" + replicaIndex;
+                    logger.debug("Chunk {} leido exitosamente - Type: {}, URL: {}", i,
+                            replicaType, chunkserverUrl);
 
                     successfulReads++;
 
                     if (attemptCount > 1) {
                         fallbacksUsed++;
-                        System.out.println("      🔄 FALLBACK usado (intento #" + attemptCount + ")");
+                        logger.info("Fallback utilizado para chunk {} - Intento: {}/{}",
+                                i, attemptCount, replicas.size());
                     }
 
                     break;
 
                 } catch (Exception e) {
-                    String replicaType = replicaIndex == 0 ? "PRIMARIA" : "RÉPLICA " + replicaIndex;
-                    System.err.println("      ⚠️ [" + replicaType + "] → " + chunkserverUrl +
-                                       " - Error transitorio: " + e.getMessage());
+                    String replicaType = replicaIndex == 0 ? "PRIMARY" : "REPLICA_" + replicaIndex;
+                    logger.warn("Error leyendo chunk {} desde {} - Type: {}, Intento: {}/{}, Error: {}",
+                            i, chunkserverUrl, replicaType, attemptCount, replicas.size(), e.getMessage());
 
                     if (attemptCount < replicas.size()) {
-                        System.out.println("      🔄 Intentando fallback a siguiente réplica...");
+                        logger.debug("Intentando siguiente replica para chunk {}", i);
                     }
                 }
             }
 
             if (chunkData == null) {
+                logger.error("Fallback agotado para chunk {} - ID: {}, Total replicas intentadas: {}",
+                        i, imagenId, replicas.size());
                 throw new RuntimeException("FALLBACK AGOTADO: No se pudo leer fragmento " + i +
                                            " desde ninguna de las " + replicas.size() + " réplicas");
             }
@@ -174,24 +173,20 @@ public class DFSService {
             offset += chunk.length;
         }
 
-        System.out.println();
-        System.out.println("📊 Resultado:");
-        System.out.println("   ✅ Fragmentos leídos: " + successfulReads);
-        System.out.println("   🔄 Fallbacks usados: " + fallbacksUsed);
-        System.out.println("   📦 Tamaño total: " + totalSize + " bytes");
-
-        if (fallbacksUsed == 0) {
-            System.out.println("   🎯 Eficiencia perfecta: Sin fallbacks necesarios");
+        if (fallbacksUsed > 0) {
+            logger.info("Download completado con fallbacks - ID: {}, Size: {} bytes, Chunks leidos: {}, Fallbacks: {}",
+                    imagenId, totalSize, successfulReads, fallbacksUsed);
         } else {
-            System.out.println("   ⚠️ Health checks detectaron " + fallbacksUsed + " fallos transitorios");
+            logger.info("Download completado exitosamente - ID: {}, Size: {} bytes, Chunks leidos: {}",
+                    imagenId, totalSize, successfulReads);
         }
-        System.out.println();
 
         return fullImage;
     }
 
     public void deleteImagen(String imagenId) throws Exception {
-        System.out.println("🗑️ Eliminando: " + imagenId);
+        logger.info("Eliminando imagen - ID: {}", imagenId);
         masterClient.deleteImage(imagenId);
+        logger.info("Imagen eliminada exitosamente - ID: {}", imagenId);
     }
 }

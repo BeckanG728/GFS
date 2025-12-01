@@ -1,8 +1,9 @@
 package com.tpdteam3.backend.controller;
 
-
 import com.tpdteam3.backend.entity.Producto;
 import com.tpdteam3.backend.service.ProductoService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -16,6 +17,8 @@ import java.util.Map;
 @RequestMapping("/api/productos")
 public class ProductoController {
 
+    private static final Logger logger = LoggerFactory.getLogger(ProductoController.class);
+
     @Autowired
     private ProductoService productoService;
 
@@ -25,7 +28,7 @@ public class ProductoController {
             List<Producto> productos = productoService.listar();
             return ResponseEntity.ok(productos);
         } catch (Exception e) {
-            e.printStackTrace();
+            logger.error("Error al listar productos - Error: {}", e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
     }
@@ -34,8 +37,10 @@ public class ProductoController {
     public ResponseEntity<Producto> obtenerProducto(@PathVariable Integer id) {
         try {
             Producto producto = productoService.obtener(id);
+            logger.debug("Producto obtenido - ID: {}", id);
             return ResponseEntity.ok(producto);
         } catch (RuntimeException e) {
+            logger.warn("Producto no encontrado - ID: {}", id);
             return ResponseEntity.notFound().build();
         }
     }
@@ -45,6 +50,7 @@ public class ProductoController {
         try {
             // Validaciones
             if (producto.getNombProd() == null || producto.getNombProd().trim().isEmpty()) {
+                logger.warn("Intento de crear producto sin nombre");
                 Map<String, String> error = new HashMap<>();
                 error.put("status", "error");
                 error.put("message", "El nombre del producto es requerido");
@@ -52,6 +58,7 @@ public class ProductoController {
             }
 
             if (producto.getPrecProd() == null || producto.getPrecProd() < 0) {
+                logger.warn("Intento de crear producto con precio invalido - Precio: {}", producto.getPrecProd());
                 Map<String, String> error = new HashMap<>();
                 error.put("status", "error");
                 error.put("message", "El precio debe ser mayor o igual a 0");
@@ -59,6 +66,7 @@ public class ProductoController {
             }
 
             if (producto.getStocProd() == null || producto.getStocProd() < 0) {
+                logger.warn("Intento de crear producto con stock invalido - Stock: {}", producto.getStocProd());
                 Map<String, String> error = new HashMap<>();
                 error.put("status", "error");
                 error.put("message", "El stock debe ser mayor o igual a 0");
@@ -66,9 +74,11 @@ public class ProductoController {
             }
 
             Producto nuevoProducto = productoService.crear(producto);
+            logger.info("Producto creado exitosamente - ID: {}, Nombre: {}",
+                    nuevoProducto.getCodiProd(), nuevoProducto.getNombProd());
             return ResponseEntity.status(HttpStatus.CREATED).body(nuevoProducto);
         } catch (Exception e) {
-            e.printStackTrace();
+            logger.error("Error al crear producto - Error: {}", e.getMessage(), e);
             Map<String, String> error = new HashMap<>();
             error.put("status", "error");
             error.put("message", "Error al crear el producto: " + e.getMessage());
@@ -82,8 +92,8 @@ public class ProductoController {
             @RequestBody Producto producto) {
         try {
             producto.setCodiProd(id);
-            Producto productoActualizado = productoService.actualizar(producto);
-
+            productoService.actualizar(producto);
+            logger.info("Producto actualizado exitosamente - ID: {}", id);
             Map<String, String> response = new HashMap<>();
             response.put("status", "success");
             response.put("message", "Producto actualizado correctamente");
@@ -93,16 +103,18 @@ public class ProductoController {
             Map<String, String> errorResponse = new HashMap<>();
 
             if (e.getMessage().contains("modificado por otro usuario")) {
+                logger.warn("Conflicto de version optimista - ID: {}", id);
                 errorResponse.put("status", "conflict");
                 errorResponse.put("message", e.getMessage());
                 return ResponseEntity.status(HttpStatus.CONFLICT).body(errorResponse);
             }
 
+            logger.error("Producto no encontrado al actualizar - ID: {}", id);
             errorResponse.put("status", "error");
             errorResponse.put("message", "Producto no encontrado");
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(errorResponse);
         } catch (Exception e) {
-            e.printStackTrace();
+            logger.error("Error al actualizar producto - ID: {}, Error: {}", id, e.getMessage(), e);
             Map<String, String> errorResponse = new HashMap<>();
             errorResponse.put("status", "error");
             errorResponse.put("message", "Error interno del servidor: " + e.getMessage());
@@ -114,12 +126,13 @@ public class ProductoController {
     public ResponseEntity<Map<String, String>> eliminarProducto(@PathVariable Integer id) {
         try {
             productoService.eliminar(id);
+            logger.info("Producto eliminado exitosamente - ID: {}", id);
             Map<String, String> response = new HashMap<>();
             response.put("status", "success");
             response.put("message", "Producto eliminado correctamente");
             return ResponseEntity.ok(response);
         } catch (Exception e) {
-            e.printStackTrace();
+            logger.error("Error al eliminar producto - ID: {}, Error: {}", id, e.getMessage(), e);
             Map<String, String> error = new HashMap<>();
             error.put("status", "error");
             error.put("message", "Error al eliminar el producto: " + e.getMessage());
